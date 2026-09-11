@@ -138,28 +138,13 @@ export async function leaveVoice(channelId) {
 }
 
 let playLock = new Set();
-let playQueue = new Map(); // channelId -> promise chain to serialize
 export async function playInVoice(channelId, soundName) {
-  // immediate cut for spam same sound - don't wait for queue
-  if(playLock.has(channelId)){
-    console.info(`[voice] immediate cut for double-click ${soundName} in ${channelId}`);
-    for(const [cid, p] of Array.from(players.entries())){
-      try{ await p.stop(); }catch{}
-      players.delete(cid);
-    }
+  for(const [cid, p] of Array.from(players.entries())){
+    try{ await p.stop(); }catch{}
+    players.delete(cid);
   }
-  const prev = playQueue.get(channelId) || Promise.resolve();
-  let resolveLock;
-  const cur = new Promise(r=> resolveLock = r);
-  playQueue.set(channelId, cur);
-  await prev.catch(()=>{});
-  try{
-    for(const [cid, p] of Array.from(players.entries())){
-      try{ await p.stop(); }catch{}
-      players.delete(cid);
-    }
-    await new Promise(r=>setTimeout(r, 120));
-    playLock.add(channelId);
+  await new Promise(r=>setTimeout(r, 80));
+  playLock.add(channelId);
     try{
       const entry = getEntry(soundName);
       if (!entry) throw new Error("not_found");
@@ -171,16 +156,15 @@ export async function playInVoice(channelId, soundName) {
       const vol = getVolume();
       try{ player.setVolume(vol); }catch{}
       players.set(channelId, player);
-      player.once("finish", ()=> { armIdle(channelId); playLock.delete(channelId); });
-      player.once("error", ()=> { armIdle(channelId); playLock.delete(channelId); });
-      await conn.play(player);
-      await new Promise(r => setTimeout(r, 200));
-      player.playStream(fs.createReadStream(filepath));
-      console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}`);
-      setTimeout(()=> playLock.delete(channelId), 15000);
-      return { channelId, soundName, filename: entry.filename };
-    }finally{ setTimeout(()=> playLock.delete(channelId), 500); }
-  }finally{ setTimeout(()=> { resolveLock(); playQueue.delete(channelId); }, 500); }
+  player.once("finish", ()=> { armIdle(channelId); playLock.delete(channelId); });
+  player.once("error", ()=> { armIdle(channelId); playLock.delete(channelId); });
+  await conn.play(player);
+  await new Promise(r => setTimeout(r, 200));
+  player.playStream(fs.createReadStream(filepath));
+  console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}`);
+  setTimeout(()=> playLock.delete(channelId), 15000);
+  return { channelId, soundName, filename: entry.filename };
+  }finally{ setTimeout(()=> playLock.delete(channelId), 500); }
 }
 
 export function isVoiceConnected(channelId) {
