@@ -109,6 +109,14 @@ app.get("/api/voice/status", auth, async (req,res)=>{
     res.json({ connections: listVoiceConnections(), defaultVoice: DEFAULT_VOICE });
   } catch(e){ res.json({ connections: [], defaultVoice: DEFAULT_VOICE, error: e.message }); }
 });
+app.get("/api/voice/debug", auth, async (req,res)=>{
+  const channelId = (req.query.channelId || DEFAULT_VOICE || "").trim();
+  if(!channelId) return res.status(400).json({ error: "missing_channelId" });
+  try{
+    const { getVoiceDebug } = await import("./voice.js");
+    res.json(getVoiceDebug(channelId));
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
 app.post("/api/voice/join", auth, async (req,res)=>{
   const channelId = (req.body.channelId || req.query.channelId || DEFAULT_VOICE || "").trim();
   if (!channelId) return res.status(400).json({ error: "missing_channelId" });

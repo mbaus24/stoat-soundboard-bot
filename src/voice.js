@@ -50,38 +50,74 @@ function armIdle(channelId){
   console.info(`[voice] idle timer armed ${Math.round(ms/1000)}s for ${channelId}`);
 }
 
-export async function joinVoice(channelId) {
+export async function joinVoice(channelId, _retry=0) {
   if (!channelId) throw new Error("missing_channelId");
   const rv = getRevoice();
   if (connections.has(channelId)){
     armIdle(channelId);
     return connections.get(channelId);
   }
+  // also check revoice's internal map (survives our Map clear on restart)
+  try{
+    const existing = rv.getVoiceConnection(channelId);
+    if(existing){
+      connections.set(channelId, existing);
+      armIdle(channelId);
+      console.info(`[voice] reusing existing Revoice connection ${channelId}`);
+      return existing;
+    }
+  }catch{}
   console.info(`[voice] joining ${channelId}...`);
-  const conn = await rv.join(channelId);
-  connections.set(channelId, conn);
-  conn.on("join", () => { console.info(`[voice] joined ${channelId}`); armIdle(channelId); });
-  conn.on("leave", () => {
-    console.info(`[voice] left ${channelId}`);
-    clearIdle(channelId);
-    connections.delete(channelId);
-    players.delete(channelId);
-  });
-  conn.on("autoleave", () => {
-    console.info(`[voice] autoleave ${channelId}`);
-    clearIdle(channelId);
-    connections.delete(channelId);
-  });
-  // wait for join event if not yet connected
-  if (!conn.connected) {
-    await new Promise((res, rej) => {
-      const t = setTimeout(() => rej(new Error("join_timeout")), 15000);
-      conn.once("join", () => { clearTimeout(t); res(); });
-      conn.once("error", (e) => { clearTimeout(t); rej(e); });
+  try{
+    const conn = await rv.join(channelId);
+    connections.set(channelId, conn);
+    conn.on("join", () => { console.info(`[voice] joined ${channelId}`); armIdle(channelId); });
+    conn.on("leave", () => {
+      console.info(`[voice] left ${channelId}`);
+      clearIdle(channelId);
+      connections.delete(channelId);
+      players.delete(channelId);
     });
+    conn.on("autoleave", () => {
+      console.info(`[voice] autoleave ${channelId}`);
+      clearIdle(channelId);
+      connections.delete(channelId);
+    });
+    if (!conn.connected) {
+      await new Promise((res, rej) => {
+        const t = setTimeout(() => rej(new Error("join_timeout")), 15000);
+        conn.once("join", () => { clearTimeout(t); res(); });
+        conn.once("error", (e) => { clearTimeout(t); rej(e); });
+      });
+    }
+    armIdle(channelId);
+    return conn;
+  }catch(e){
+    const msg = e?.response?.data?.type || e?.message || String(e);
+    const isAlready = msg.includes("AlreadyConnected") || JSON.stringify(e).includes("AlreadyConnected");
+    if(isAlready){
+      console.warn(`[voice] AlreadyConnected for ${channelId}, trying to recover...`);
+      // try to find any existing connection for this server and leave it, then retry
+      if(_retry < 2){
+        // wait a bit for LiveKit to clear stale (server holds it ~30s)
+        await new Promise(r=>setTimeout(r, 3000));
+        // try to force leave via any existing connection on same server
+        for(const [cid, c] of connections.entries()){
+          try{ await c.leave(); }catch{}
+        }
+        // also try revoice's internal connections
+        for(const [cid, c] of (rv.connections||new Map()).entries()){
+          if(cid!==channelId) continue;
+          try{ await c.leave(); }catch{}
+        }
+        // wait for server to clear
+        await new Promise(r=>setTimeout(r, 2000));
+        return joinVoice(channelId, _retry+1);
+      }
+      throw new Error("already_connected_try_leave_first_or_wait_30s");
+    }
+    throw e;
   }
-  armIdle(channelId);
-  return conn;
 }
 
 export async function leaveVoice(channelId) {
@@ -131,6 +167,23 @@ export function isVoiceConnected(channelId) {
 
 export function listVoiceConnections() {
   return Array.from(connections.keys());
+}
+export function getVoiceDebug(channelId){
+  const conn = connections.get(channelId);
+  if(!conn) return { connected: false, hasConn: false, channelId };
+  try{
+    const room = conn.room;
+    return {
+      connected: !!conn.connected,
+      hasConn: true,
+      channelId,
+      roomConnected: room ? (typeof room.isConnected === 'function' ? room.isConnected() : !!room.isConnected) : null,
+      roomState: room?.state || null,
+      participants: room ? Array.from(room.remoteParticipants?.keys?.() || []) : [],
+      localParticipant: room?.localParticipant?.identity || null,
+      trackPublised: !!conn.media
+    };
+  }catch(e){ return { error: e.message, channelId }; }
 }
 
 export async function stopVoice(channelId) {

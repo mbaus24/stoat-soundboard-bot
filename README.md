@@ -110,6 +110,15 @@ Powered by `revoice.js` + `@livekit/rtc-node` + `ffmpeg-static`. Requires `Conne
 
 If `AlreadyConnected` appears after a restart, the previous LiveKit session is stale — wait 30-40s or kick the bot from the voice channel in the UI and re-`Join`.
 
+## Robustness
+
+- **Voice rejoin** — handles `AlreadyConnected` by reusing `Revoice` internal connection or leaving stale and retrying (2× with backoff)
+- **LiveKit compat** — patches `revoice.js` `isConnected` API change (`0.13` → newer `rtc-node`) via `Dockerfile` `sed`
+- **Media** — uses `playStream` to avoid `fs is not defined` in `revoice` `playFile`
+- **Idle** — 5-10 min random auto-leave per voice channel, `unref` timers
+- **Gateway** — `client.on('error'/'disconnected')` + `unhandledRejection` keep web UI alive even if bot token invalid
+- **Channels** — `GET /api/channels` fetches real names via `client.api.get` with `voice` detection for stylish selectors
+
 ## Project Structure
 
 ```
