@@ -185,7 +185,6 @@ export async function playInVoice(channelId, soundName) {
   return { channelId, soundName, filename: entry.filename };
   }finally{ setTimeout(()=> playLock.delete(channelId), 500); }
 }
-}
 
 export function isVoiceConnected(channelId) {
   return connections.has(channelId);
