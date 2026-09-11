@@ -1,0 +1,23 @@
+services:
+  stoat-soundboard:
+    build: .
+    container_name: stoat-soundboard
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - STOAT_BASE_URL=${STOAT_BASE_URL:-https://stoat.chat/api}
+      - PREFIX=${PREFIX:-!sb}
+      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-8}
+      - WEB_PORT=${WEB_PORT:-3000}
+      - WEB_PASSWORD=${WEB_PASSWORD:-}
+      - DEFAULT_CHANNEL_ID=${DEFAULT_CHANNEL_ID:-}
+    volumes:
+      - ./sounds:/app/sounds
+    ports:
+      - "${WEB_PORT:-3000}:${WEB_PORT:-3000}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

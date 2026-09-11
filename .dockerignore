@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+sounds/*.mp3
+sounds/*.ogg
+sounds/*.wav
+sounds/*.webm
+sounds/*.m4a
+.env

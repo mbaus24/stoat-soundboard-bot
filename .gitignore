@@ -1,0 +1,11 @@
+node_modules/
+.env
+sounds/*.mp3
+sounds/*.ogg
+sounds/*.wav
+sounds/*.webm
+sounds/*.m4a
+sounds/*.flac
+sounds/*.opus
+!sounds/.gitkeep
+sounds/sounds.json

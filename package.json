@@ -1,0 +1,21 @@
+{
+  "name": "stoat-soundboard-bot",
+  "version": "1.0.0",
+  "description": "Stoat soundboard bot - trigger sounds via commands, upload and play audio files",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "lint": "echo 'no lint configured'"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "multer": "^2.0.2",
+    "revoice.js": "^0.2.1696",
+    "stoat.js": "^7.3.6"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  }
+}

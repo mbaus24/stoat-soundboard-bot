@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Soundboard — Moulin</title>
+<style>
+:root{--bg:#0f0f10;--card:#1c1c1f;--accent:#ff3864;--accent2:#7c5cff;--muted:#9a9aa0;--border:#2a2a2e}
+*{box-sizing:border-box;font-family:Inter,system-ui,Segoe UI,sans-serif}
+body{margin:0;background:var(--bg);color:#eee;min-height:100vh}
+button{cursor:pointer}
+input,button,select{background:var(--card);color:#eee;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px}
+button.primary{background:var(--accent);border-color:var(--accent);font-weight:700}
+button.secondary{background:var(--card);border-color:var(--border)}
+button.voice{background:var(--accent2);border-color:var(--accent2);font-weight:600}
+button:disabled{opacity:.5;cursor:not-allowed}
+/* Login */
+#login{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 600px at 50% -10%, #1e1e24 0%, var(--bg) 60%);z-index:100}
+.login-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:32px 28px;width:420px;max-width:90vw;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.login-card h1{margin:0 0 6px;font-size:26px}
+.login-card h1 span{color:var(--accent)}
+.login-card p{color:var(--muted);margin:0 0 18px;font-size:14px}
+.login-card input{width:100%;padding:12px 14px;font-size:15px;margin-bottom:12px;text-align:center;letter-spacing:1px}
+.login-card button{width:100%;padding:12px;font-size:15px}
+.login-card .err{color:#ff6b7a;font-size:13px;min-height:18px;margin-top:8px}
+/* App */
+header{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+h1{margin:0;font-size:22px}
+h1 span{color:var(--accent)}
+main{max-width:1280px;margin:0 auto;padding:24px;display:grid;grid-template-columns:360px 1fr;gap:20px}
+@media(max-width:950px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}
+.card h2{margin:0 0 12px;font-size:16px}
+.muted{color:var(--muted);font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.sound{border:1px solid var(--border);border-radius:12px;padding:12px;background:#18181b;display:flex;flex-direction:column;gap:8px}
+.sound h3{margin:0;font-size:15px;word-break:break-all}
+.sound .cat{font-size:11px;background:var(--accent2);color:#fff;padding:2px 7px;border-radius:99px;display:inline-block}
+.sound audio{width:100%;height:32px}
+.drop{border:2px dashed var(--border);border-radius:12px;padding:22px;text-align:center;color:var(--muted);cursor:pointer}
+.drop.drag{border-color:var(--accent);color:var(--accent);background:#1f1a1c}
+.badge{font-size:12px;background:#2a2a2e;padding:3px 8px;border-radius:99px}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#222;padding:10px 16px;border-radius:10px;border:1px solid var(--border);display:none;max-width:90vw;text-align:center;z-index:90}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.filter-bar button{padding:6px 12px;font-size:13px}
+.filter-bar button.active{background:var(--accent2);border-color:var(--accent2)}
+.search{width:100%;margin-bottom:12px}
+.app-hidden{display:none !important}
+/* Channel selector */
+.channel-select{position:relative;min-width:240px}
+.channel-select button.trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:#eee;font-size:13px}
+.channel-select button.trigger .label{opacity:.6;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.channel-select .dropdown{position:absolute;top:calc(100% + 6px);left:0;right:0;background:#1a1a1e;border:1px solid var(--border);border-radius:12px;max-height:320px;overflow:auto;z-index:20;display:none;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.channel-select.open .dropdown{display:block}
+.channel-select .opt{padding:10px 12px;cursor:pointer;border-bottom:1px solid #222;display:flex;align-items:center;gap:10px}
+.channel-select .opt:hover{background:#252529}
+.channel-select .opt.active{background:#2a2a3a}
+.channel-select .opt .icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.channel-select .opt .icon.text{background:#ff386426;color:#ff3864}
+.channel-select .opt .icon.voice{background:#7c5cff26;color:#7c5cff}
+.channel-select .server{font-size:11px;color:var(--muted);padding:8px 12px 4px;text-transform:uppercase;letter-spacing:.6px;background:#141417;position:sticky;top:0}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="login-card">
+    <h1>🔊 Soundboard <span>Moulin</span></h1>
+    <p>Enter password to access</p>
+    <input id="loginPw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" autofocus/>
+    <button class="primary" onclick="doLogin()">Unlock</button>
+    <div id="loginErr" class="err"></div>
+    <p class="muted" style="margin-top:14px;font-size:12px">Protected • moulin-soundboard.duckdns.org</p>
+  </div>
+</div>
+
+<div id="app" class="app-hidden">
+<header>
+  <h1>🔊 Soundboard <span>Moulin</span> <span style="font-weight:400;font-size:14px;color:var(--muted)">Voice • moulin-soundboard.duckdns.org</span></h1>
+  <div class="row" style="gap:10px">
+    <div class="channel-select" id="textSelectWrap"></div>
+    <div class="channel-select" id="voiceSelectWrap"></div>
+    <button class="secondary" onclick="logout()">Logout</button>
+    <span id="status" class="badge">…</span>
+  </div>
+</header>
+
+<main>
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div class="card">
+      <h2>Upload Sound</h2>
+      <div class="row" style="margin-bottom:10px">
+        <input id="soundName" placeholder="name: bruh, tada, airhorn" pattern="[a-z0-9_-]{1,30}" style="flex:1"/>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <input id="soundCategory" placeholder="Category (General)" style="flex:1" list="catList"/>
+        <datalist id="catList"></datalist>
+      </div>
+      <div id="drop" class="drop" onclick="document.getElementById('file').click()">
+        Drag audio here or click<br/><span class="muted">mp3/ogg/wav/webm/m4a/flac/opus • max <span id="maxMb">8</span>MB</span>
+      </div>
+      <input id="file" type="file" accept="audio/*,.mp3,.ogg,.wav,.webm,.m4a,.flac,.opus" hidden/>
+      <div id="fileInfo" class="muted" style="margin-top:8px"></div>
+      <button id="uploadBtn" style="width:100%;margin-top:12px" onclick="upload()">Upload</button>
+      <div class="muted" style="margin-top:10px">Also via Stoat: <code>!sb add &lt;name&gt;</code> + attachment</div>
+    </div>
+
+    <div class="card" style="border-color:var(--accent2)">
+      <h2>🔊 Voice — LiveKit</h2>
+      <div class="muted" style="margin-bottom:10px">Bot joins voice and plays sounds live.</div>
+      <div class="row">
+        <button class="voice" onclick="voiceJoin()">Join Voice</button>
+        <button class="secondary" onclick="voiceLeave()">Leave</button>
+        <button class="secondary" onclick="voiceStop()">⏹ Stop</button>
+        <span id="voiceStatus" class="badge">voice: —</span>
+      </div>
+      <div class="muted" style="margin-top:10px">Stoat: <code>!sb vjoin</code> <code>!sb vplay &lt;name&gt;</code></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <h2 style="margin:0">Sounds (<span id="count">0</span>)</h2>
+      <button class="secondary" onclick="load()">↻ Refresh</button>
+    </div>
+    <input id="search" class="search" placeholder="Search sounds..." oninput="render()"/>
+    <div id="filterBar" class="filter-bar"></div>
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="muted" style="display:none;padding:20px;text-align:center">No sounds — upload above.</div>
+  </div>
+</main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let currentCategory = localStorage.getItem('sb_category')||'all';
+let sounds=[], categories=[];
+let serversCache = [];
+
+function getToken(){ return localStorage.getItem('sb_token')||''; }
+function setToken(t){ localStorage.setItem('sb_token', t); }
+
+function showApp(show){
+  $('login').style.display = show ? 'none' : 'flex';
+  $('app').classList.toggle('app-hidden', !show);
+}
+
+async function doLogin(){
+  const pw = $('loginPw').value.trim();
+  if(!pw){ $('loginErr').textContent='Enter password'; return; }
+  $('loginErr').textContent='';
+  try{
+    const r = await fetch('/api/sounds', { headers: { 'X-Token': pw } });
+    if(!r.ok) throw new Error('Wrong password');
+    setToken(pw);
+    const j = await r.json();
+    if(j.defaultChannel && !localStorage.getItem('sb_channel')) localStorage.setItem('sb_channel', j.defaultChannel);
+    if(j.defaultVoice && !localStorage.getItem('sb_voice')) localStorage.setItem('sb_voice', j.defaultVoice);
+    showApp(true);
+    await load();
+    toast('Unlocked');
+  }catch(e){
+    $('loginErr').textContent = 'Wrong password';
+  }
+}
+function logout(){
+  localStorage.removeItem('sb_token');
+  showApp(false);
+  $('loginPw').value='';
+  $('loginPw').focus();
+}
+
+// auto-login if token already valid
+(async ()=>{
+  const t = getToken();
+  if(t){
+    try{
+      const r = await fetch('/api/sounds', { headers: { 'X-Token': t } });
+      if(r.ok){ 
+        showApp(true); 
+        load(); 
+        return; 
+      }
+    }catch{}
+    localStorage.removeItem('sb_token');
+  }
+  showApp(false);
+})();
+
+function saveCfg(){
+  // channel ids now via stylish selector (localStorage)
+  localStorage.setItem('sb_category', currentCategory);
+}
+function getChannelId(){ return localStorage.getItem('sb_channel')||''; }
+function getVoiceId(){ return localStorage.getItem('sb_voice')||''; }
+function authHeaders(){
+  const t = getToken();
+  return t ? { 'X-Token': t } : {};
+}
+function toast(msg, err){
+  const el=$('toast'); el.textContent=msg; el.style.display='block'; el.style.borderColor= err?'#ff3864':'#2a2a2e';
+  setTimeout(()=>el.style.display='none',3500);
+}
+
+function buildChannelSelectors(){
+  const textWrap=$('textSelectWrap'), voiceWrap=$('voiceSelectWrap');
+  if(!textWrap || !voiceWrap) return;
+  const curText = localStorage.getItem('sb_channel')||'';
+  const curVoice = localStorage.getItem('sb_voice')||'';
+  function makeSelect(wrap, type, cur, placeholder){
+    const label = type==='voice' ? 'Voice' : 'Text';
+    const icon = type==='voice' ? '🔊' : '#';
+    // stylish: filter voice vs text properly
+    const channels = serversCache.flatMap(s=> s.channels.filter(c=> type==='voice' ? c.voice : !c.voice).map(c=> ({...c, serverName: s.name})));
+    // fallback: if no voice channels, show all with voice badge
+    const displayChannels = channels.length ? channels : serversCache.flatMap(s=> s.channels.map(c=> ({...c, serverName: s.name})));
+    let curName = placeholder;
+    if(cur){
+      const found = displayChannels.find(c=>c._id===cur) || serversCache.flatMap(s=>s.channels).find(c=>c._id===cur);
+      if(found){
+        const srv = serversCache.find(s=>s.channels.find(ch=>ch._id===cur));
+        const srvName = found.serverName || srv?.name || '';
+        curName = srvName ? `${srvName} → ${found.name}` : found.name;
+      } else curName = cur.slice(0,8)+'…';
+    }
+    wrap.innerHTML = `
+      <button class="trigger" onclick="this.parentElement.classList.toggle('open')">
+        <span style="display:flex;align-items:center;gap:8px"><span class="icon ${type}">${icon}</span> <span style="text-align:left"><span class="label">${label}</span><br><span style="font-size:13px">${curName}</span></span></span>
+        <span>▾</span>
+      </button>
+      <div class="dropdown"></div>
+    `;
+    const dd = wrap.querySelector('.dropdown');
+    // group by server
+    const byServer = {};
+    channels.forEach(c=>{ (byServer[c.serverName]=byServer[c.serverName]||[]).push(c); });
+    Object.entries(byServer).forEach(([srv, chans])=>{
+      const hdr=document.createElement('div'); hdr.className='server'; hdr.textContent=srv; dd.appendChild(hdr);
+      chans.forEach(c=>{
+        const isText = !c.voice;
+        if(type==='voice' && isText && !c.voice) { /* still show but dim */ }
+        const opt=document.createElement('div'); opt.className='opt'+(c._id===cur?' active':'');
+        const typeIcon = c.voice ? '🔊' : '#';
+        const typeClass = c.voice ? 'voice' : 'text';
+        opt.innerHTML=`<span class="icon ${typeClass}">${typeIcon}</span><span style="flex:1"><span style="font-size:13px">${c.name}</span><br><span class="muted" style="font-size:11px">${c._id.slice(0,6)}… • ${c.channel_type}</span></span>${c._id===cur?'✓':''}`;
+        opt.onclick=()=>{
+          localStorage.setItem(type==='voice'?'sb_voice':'sb_channel', c._id);
+          wrap.classList.remove('open');
+          buildChannelSelectors();
+          toast(`${label} → ${c.name}`);
+        };
+        dd.appendChild(opt);
+      });
+    });
+    // manual input fallback
+    const manual=document.createElement('div'); manual.style.padding='8px'; manual.innerHTML=`<input placeholder="Or paste ID" style="width:100%" value="${cur}" onkeydown="if(event.key==='Enter'){localStorage.setItem('${type==='voice'?'sb_voice':'sb_channel'}',this.value.trim()); buildChannelSelectors(); toast('Updated');}">`;
+    dd.appendChild(manual);
+  }
+  makeSelect(textWrap, 'text', curText, 'Select text channel');
+  makeSelect(voiceWrap, 'voice', curVoice, 'Select voice channel');
+  // close on outside click
+  document.addEventListener('click', e=>{
+    if(!e.target.closest('.channel-select')) document.querySelectorAll('.channel-select.open').forEach(el=>el.classList.remove('open'));
+  }, { once:true });
+}
+
+async function load(){
+  const t = getToken();
+  if(!t){ showApp(false); return; }
+  try{
+    const r = await fetch('/api/sounds', { headers: authHeaders() });
+    if(r.status===401){ logout(); toast('Session expired', true); return; }
+    if(!r.ok) throw new Error(await r.text());
+    const j = await r.json();
+    sounds = j.sounds;
+    categories = j.categories || [...new Set(sounds.map(s=>s.category||'General'))].sort();
+    $('count').textContent = sounds.length;
+    $('maxMb').textContent = '8';
+    updateCategoryFilters();
+    render();
+    const h = await fetch('/api/health').then(r=>r.json());
+    $('status').textContent = h.botReady ? `Bot: ${h.bot}` : 'Bot: offline';
+    $('status').style.background = h.botReady ? '#143d1e' : '#3d1414';
+    // fetch channels for stylish selector
+    try{
+      const cr = await fetch('/api/channels', { headers: authHeaders() });
+      if(cr.ok){
+        const cj = await cr.json();
+        serversCache = cj.servers || [];
+        buildChannelSelectors();
+      }
+    }catch(e){ console.warn('channels',e); }
+    if(j.defaultChannel && !localStorage.getItem('sb_channel')) localStorage.setItem('sb_channel', j.defaultChannel);
+    if(j.defaultVoice && !localStorage.getItem('sb_voice')) localStorage.setItem('sb_voice', j.defaultVoice);
+    try {
+      const v = await fetch('/api/voice/status', { headers: authHeaders() }).then(r=>r.json());
+      if (v.connections && v.connections.length) $('voiceStatus').textContent = `voice: ${v.connections.length} connected`;
+      else $('voiceStatus').textContent = v.defaultVoice ? `voice: ready (${v.defaultVoice.slice(0,6)}…)` : 'voice: —';
+      if (v.defaultVoice && !localStorage.getItem('sb_voice')) localStorage.setItem('sb_voice', v.defaultVoice);
+    } catch {}
+  }catch(e){ $('status').textContent='Load error'; toast(e.message,true); if(e.message.includes('401')) logout(); }
+}
+
+function updateCategoryFilters(){
+  const bar=$('filterBar');
+  const catList=$('catList');
+  bar.innerHTML='';
+  catList.innerHTML='';
+  const cats = ['all', ...categories];
+  cats.forEach(c=>{
+    if(c!=='all'){
+      const opt=document.createElement('option'); opt.value=c; catList.appendChild(opt);
+    }
+    const btn=document.createElement('button');
+    btn.textContent = c==='all' ? `All (${sounds.length})` : `${c} (${sounds.filter(s=>(s.category||'General')===c).length})`;
+    btn.className = c===currentCategory ? 'active' : 'secondary';
+    if(c===currentCategory) btn.classList.add('active');
+    btn.onclick=()=>{ currentCategory=c; localStorage.setItem('sb_category',c); updateCategoryFilters(); render(); };
+    bar.appendChild(btn);
+  });
+  if(!cats.includes(currentCategory)) currentCategory='all';
+}
+
+function getFiltered(){
+  let list=sounds;
+  if(currentCategory!=='all') list=list.filter(s=>(s.category||'General')===currentCategory);
+  const q=$('search').value.trim().toLowerCase();
+  if(q) list=list.filter(s=>s.name.toLowerCase().includes(q) || (s.category||'').toLowerCase().includes(q));
+  return list;
+}
+
+function render(){
+  const g=$('grid'); g.innerHTML='';
+  const list=getFiltered();
+  if(!list.length){ $('empty').style.display='block'; return; } $('empty').style.display='none';
+  list.forEach(s=>{
+    const cat=s.category||'General';
+    const div=document.createElement('div'); div.className='sound';
+    div.innerHTML=`
+      <div class="row" style="justify-content:space-between">
+        <h3>${s.name}</h3>
+        <span class="cat">${cat}</span>
+      </div>
+      <div class="muted" style="font-size:12px">${s.filename} • ${(s.size/1024).toFixed(1)}KB • ${new Date(s.createdAt).toLocaleDateString()}</div>
+      <audio controls preload="none" src="/sounds/${encodeURIComponent(s.filename)}"></audio>
+      <div class="row">
+        <button onclick="play('${s.name}')">▶ Send</button>
+        <button class="voice" onclick="playVoice('${s.name}')">🔊 Voice</button>
+        <button class="secondary" onclick="del('${s.name}')">Delete</button>
+      </div>
+      <div class="row">
+        <button class="secondary" onclick="renamePrompt('${s.name}')" style="font-size:12px">Rename</button>
+        <button class="secondary" onclick="voiceStop()" style="font-size:12px">⏹ Stop</button>
+      </div>`;
+    g.appendChild(div);
+  });
+}
+
+async function upload(){
+  const name=$('soundName').value.trim().toLowerCase();
+  const cat=$('soundCategory').value.trim() || 'General';
+  const file=$('file').files[0];
+  if(!name || !/^[a-z0-9_-]{1,30}$/.test(name)) return toast('Invalid name: a-z 0-9 _ - (1-30)',true);
+  if(!file) return toast('Choose a file',true);
+  const fd=new FormData(); fd.append('name',name); fd.append('category',cat); fd.append('file',file);
+  $('uploadBtn').disabled=true; $('uploadBtn').textContent='Uploading...';
+  try{
+    const r=await fetch('/api/sounds', { method:'POST', headers: authHeaders(), body: fd });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error || 'upload failed');
+    toast(`Added ${name} → ${cat}`);
+    $('soundName').value=''; $('file').value=''; $('fileInfo').textContent='';
+    load();
+  }catch(e){ toast(e.message,true); }
+  finally{ $('uploadBtn').disabled=false; $('uploadBtn').textContent='Upload'; }
+}
+
+async function play(name){
+  const channelId=getChannelId();
+  if(!channelId) return toast('Select a Text channel first',true);
+  try{
+    const r=await fetch(`/api/play/${encodeURIComponent(name)}`, { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify({ channelId }) });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error || 'play failed');
+    toast(`▶ ${name} sent`);
+  }catch(e){ toast(e.message,true); }
+}
+async function playVoice(name){
+  const channelId=getVoiceId();
+  if(!channelId) return toast('Select a Voice channel first',true);
+  try{
+    toast(`🔊 ${name} → voice...`);
+    const r=await fetch(`/api/voice/play/${encodeURIComponent(name)}`, { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify({ channelId }) });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error || 'voice play failed');
+    toast(`🔊 ${name} in voice`);
+  }catch(e){ toast(e.message,true); }
+}
+async function voiceJoin(){
+  const channelId=getVoiceId();
+  if(!channelId) return toast('Select a Voice channel first',true);
+  try{
+    const r=await fetch(`/api/voice/join`, { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify({ channelId }) });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error);
+    toast(`✅ Joined voice`);
+    load();
+  }catch(e){ toast(e.message,true); }
+}
+async function voiceLeave(){
+  const channelId=getVoiceId();
+  if(!channelId) return toast('Select a Voice channel first',true);
+  try{
+    const r=await fetch(`/api/voice/leave`, { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify({ channelId }) });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error);
+    toast(`👋 Left`);
+    load();
+  }catch(e){ toast(e.message,true); }
+}
+async function voiceStop(){
+  const channelId=getVoiceId();
+  if(!channelId) return toast('Select a Voice channel first',true);
+  try{
+    const r=await fetch(`/api/voice/stop`, { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify({ channelId }) });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error);
+    toast(`⏹ Stopped`);
+  }catch(e){ toast(e.message,true); }
+}
+async function del(name){
+  if(!confirm(`Delete ${name}?`)) return;
+  const r=await fetch(`/api/sounds/${encodeURIComponent(name)}?token=${encodeURIComponent(getToken())}`, { method:'DELETE', headers: authHeaders() });
+  if(!r.ok) return toast('Delete error',true);
+  toast(`Deleted ${name}`); load();
+}
+async function renamePrompt(oldName){
+  const n=prompt(`New name for ${oldName}:`, oldName);
+  if(!n || n===oldName) return;
+  const r=await fetch(`/api/sounds/${encodeURIComponent(oldName)}/rename`, { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ newName: n.toLowerCase() }) });
+  const j=await r.json(); if(!r.ok) return toast(j.error,true);
+  toast(`Renamed → ${n}`); load();
+}
+
+const drop=$('drop');
+drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', ()=> drop.classList.remove('drag'));
+drop.addEventListener('drop', e=>{
+  e.preventDefault(); drop.classList.remove('drag');
+  const f=e.dataTransfer.files[0]; if(!f) return;
+  $('file').files=e.dataTransfer.files; $('fileInfo').textContent=`${f.name} • ${(f.size/1024).toFixed(1)}KB`;
+});
+$('file').addEventListener('change', ()=>{ const f=$('file').files[0]; if(f) $('fileInfo').textContent=`${f.name} • ${(f.size/1024).toFixed(1)}KB`; });
+</script>
+</body>
+</html>
