@@ -138,17 +138,24 @@ export async function leaveVoice(channelId) {
 }
 
 let playLock = new Set();
+let playQueue = new Map(); // channelId -> promise chain to serialize
 export async function playInVoice(channelId, soundName) {
-  // no cooldown — always cut previous and play new, even same sound spammed
-  if(playLock.has(channelId)){
-    console.info(`[voice] cut previous in ${channelId} for ${soundName}`);
-  }
-  // ensure any previous player is fully stopped before new (no manual unpublish - let revoice handle)
+  // serialize per channel to avoid overlap on spam
+  const prev = playQueue.get(channelId) || Promise.resolve();
+  let resolveLock;
+  const cur = new Promise(r=> resolveLock = r);
+  playQueue.set(channelId, cur);
+  await prev.catch(()=>{});
+  try{
+  // ensure any previous player is fully stopped before new
   for(const [cid, p] of Array.from(players.entries())){
     try{ await p.stop(); }catch{}
     players.delete(cid);
   }
-  await new Promise(r=>setTimeout(r, 100));
+  await new Promise(r=>setTimeout(r, 180));
+  if(playLock.has(channelId)){
+    console.info(`[voice] cut previous in ${channelId} for ${soundName}`);
+  }
   playLock.add(channelId);
   try{
   const entry = getEntry(soundName);
@@ -169,7 +176,8 @@ export async function playInVoice(channelId, soundName) {
   console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}`);
   setTimeout(()=> playLock.delete(channelId), 15000);
   return { channelId, soundName, filename: entry.filename };
-  }finally{ setTimeout(()=> playLock.delete(channelId), 500); }
+  }finally{ setTimeout(()=> { playLock.delete(channelId); resolveLock(); playQueue.delete(channelId); }, 500); }
+}
 }
 
 export function isVoiceConnected(channelId) {
