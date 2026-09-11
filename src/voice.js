@@ -137,38 +137,32 @@ export async function leaveVoice(channelId) {
   return true;
 }
 
-let playLock = new Map(); // channelId -> timeout
-let lastPlay = new Map(); // channelId -> {name, time}
+let playLock = new Set();
 export async function playInVoice(channelId, soundName) {
-  const now = Date.now();
-  const last = lastPlay.get(channelId);
-  if(last && last.name===soundName && now - last.time < 400){
-    console.info(`[voice] debounced spam ${soundName} in ${channelId}`);
-    throw new Error("spam_cooldown");
-  }
-  lastPlay.set(channelId, {name: soundName, time: now});
+  // no cooldown — always cut previous and play new, even same sound spammed
   if(playLock.has(channelId)){
-    console.info(`[voice] already playing in ${channelId}, stopping previous and restarting ${soundName}`);
-    // force stop previous before new
-    for(const [cid, p] of Array.from(players.entries())){
-      try{ await p.stop(); }catch{}
-      players.delete(cid);
-    }
-    // small gap
-    await new Promise(r=>setTimeout(r, 120));
+    console.info(`[voice] cut previous in ${channelId} for ${soundName}`);
   }
-  playLock.set(channelId, true);
+  // ensure any previous player is fully stopped and unpublished before new
+  for(const [cid, p] of Array.from(players.entries())){
+    try{
+      // try to unpublish track from LiveKit before stop
+      const conn = connections.get(cid);
+      if(conn?.room?.localParticipant && p.track){
+        try{ await conn.room.localParticipant.unpublishTrack(p.track, true); }catch{}
+      }
+    }catch{}
+    try{ await p.stop(); }catch{}
+    players.delete(cid);
+  }
+  // gap to let LiveKit clean
+  await new Promise(r=>setTimeout(r, 100));
+  playLock.add(channelId);
   try{
   const entry = getEntry(soundName);
   if (!entry) throw new Error("not_found");
   const filepath = path.join(SOUNDS_DIR, entry.filename);
   if (!fs.existsSync(filepath)) throw new Error("file_missing");
-  // global override: stop all other sounds first to avoid overlap - await properly
-  for(const [cid, p] of Array.from(players.entries())){
-    try{ await p.stop(); }catch{}
-    players.delete(cid);
-    await new Promise(r=>setTimeout(r, 80));
-  }
   const conn = await joinVoice(channelId);
   clearIdle(channelId);
   const player = new MediaPlayer();
