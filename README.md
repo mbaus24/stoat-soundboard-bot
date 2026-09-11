@@ -1,108 +1,140 @@
-# Stoat Soundboard — Bot + App
+# Stoat Soundboard
 
-Bot Stoat + interface web pour gérer une soundboard, hébergé sur ton NAS `192.168.1.83` derrière **WireGuard**. Basé sur [awesome-stoat](https://github.com/stoatchat/awesome-stoat) / [`stoat.js` 7.3.6](https://github.com/stoatchat/javascript-client-sdk).
+Self-hosted soundboard for [Stoat](https://stoat.chat) (and any Stoat-compatible instance) — upload audio files, organize by categories, and trigger them in text channels or live in voice channels via [LiveKit](https://livekit.io).
 
-**2 composants dans 1 conteneur** (partagent `./sounds`):
-- **Bot** `src/bot.js:1` — commandes Stoat (`!sb list / add / play / delete`)
-- **App web** `src/server.js:1` + `public/index.html:1` — upload, liste, preview, envoi dans Stoat
+Built on [`stoat.js`](https://github.com/stoatchat/javascript-client-sdk) and [`revoice.js`](https://github.com/ShadowLp174/revoice.js), with a clean web UI and a single Docker container. Based on [awesome-stoat](https://github.com/stoatchat/awesome-stoat).
 
-## Fonctionnement derrière WireGuard
-- Le **bot** n'a besoin que d'une connexion **sortante** vers `stoat.chat` (WebSocket) → aucun port à ouvrir.
-- L'**app web** écoute sur `0.0.0.0:${WEB_PORT}` et est exposée seulement sur ton LAN/WG (`http://192.168.1.83:3000` via VPN). Pas d'exposition internet nécessaire.
-- `docker-compose.yml:14` bind en `127.0.0.1:${WEB_PORT}` par défaut — si ton WG est sur une autre interface, passe à `${WEB_PORT}:${WEB_PORT}`.
+![Soundboard UI](https://img.shields.io/badge/UI-English%20%7C%20Voice%20%7C%20Categories-7c5cff)
 
-## Démarrage rapide
+## Features
 
-1. Crée un bot Stoat → copie le token, invite-le avec `Send Message` + `Upload Files` (+ `Manage Messages` si tu veux).
-2. Récupère un **Channel ID** où le bot postera les sons : Stoat → Settings → Appearance → Enable Developer Mode → clic droit channel → Copy ID.
+- **Web UI** — drag & drop upload, preview, search, category filters, login with password
+- **Categories** — group sounds (e.g. General, V1, V2, Out of Context) with filter bar
+- **Text playback** — bot posts the audio file as an attachment in any text channel
+- **Voice playback** — bot joins a voice channel and streams the audio live (ffmpeg → LiveKit)
+- **Auto-leave** — voice disconnects after 5-10 min idle
+- **Bot commands** — `!sb` prefix for add/list/play/delete/rename and voice controls
+- **Single container** — bot + web UI share `./sounds` volume, `sounds.json` registry
+- **Secure** — optional `WEB_PASSWORD` (`X-Token`), HTTPS-ready via reverse proxy or Cloudflare Tunnel
+
+## Quick Start (local)
 
 ```bash
+git clone https://github.com/mbaus24/stoat-soundboard-bot.git
 cd stoat-soundboard-bot
 cp .env.example .env
-# édite .env:
-# BOT_TOKEN=...
-# WEB_PORT=3000
-# WEB_PASSWORD=unMotDePasseSiTuVeuxProtégerLUIMêmeDerrièreWG
-# DEFAULT_CHANNEL_ID=01H...  # optionnel, pré-remplit l'UI
-# PREFIX=!sb
-
+# edit .env: BOT_TOKEN, STOAT_BASE_URL, WEB_PASSWORD, DEFAULT_CHANNEL_ID, VOICE_CHANNEL_ID
 npm install
 npm start
-# UI: http://localhost:3000  (sur NAS: http://192.168.1.83:3000 via WireGuard)
-# Test: POST http://localhost:3000/api/health
+# UI: http://localhost:3000
+# Health: GET http://localhost:3000/api/health
 ```
 
-## Déploiement NAS (TrueNAS Scale)
+Create a bot at your Stoat instance → copy token → invite it with `Send Message` + `Upload Files` + `Connect` + `Speak` (for voice).
+
+Get a **Channel ID**: Stoat → Settings → Appearance → Developer Mode → right-click channel → Copy ID.
+
+## Docker
 
 ```bash
-scp -r . root@192.168.1.83:/mnt/tank/apps/stoat-soundboard-bot
-ssh root@192.168.1.83
-cd /mnt/tank/apps/stoat-soundboard-bot
-nano .env
+cp .env.example .env
+# edit .env
 docker compose up -d --build
 docker logs -f stoat-soundboard
-# Ouvre http://192.168.1.83:3000 depuis un client connecté au WG
 ```
 
-Via TrueNAS Apps → Custom App → coller `docker-compose.yml`.
+`docker-compose.yml` exposes `${WEB_PORT:-3000}:3000` and mounts `./sounds:/app/sounds`.
 
-## Utilisation
+Any Docker host works — NAS, VPS, Raspberry Pi, etc. For TrueNAS Scale: Apps → Custom App → paste `docker-compose.yml`.
 
-### App web (recommandé)
-- Ouvre l'UI → renseigne **Channel ID** + **WEB_PASSWORD** (si défini) → Save.
-- **Upload** : nom `a-z0-9_-` (ex: `bruh`) + glisser fichier audio → Uploader. Preview immédiate via `<audio>`.
-- **Jouer** : `▶ Envoyer dans Stoat` → le bot poste `🔊 bruh` + fichier joint dans le channel Stoat. Toute personne avec le Channel ID peut déclencher.
-- **Gérer** : Suppr / Renommer. Les fichiers sont dans `./sounds/` + registre `sounds/sounds.json` (persisté via volume Docker).
+## Configuration
 
-### Commandes Stoat (alternative)
-- `!sb list` — liste
-- `!sb add <nom>` + fichier joint — ajoute
-- `!sb play <nom>` ou `!sb <nom>` — joue (poste le fichier)
-- `!sb delete <nom>` / `!sb rename <old> <new>`
-- `!sb help`
+Copy `.env.example` to `.env`:
 
-Partage le stockage : un son uploadé via l'UI est jouable via `!sb play` et inversement (`src/sounds.js:1`).
+| Variable | Default | Description |
+|---|---|---|
+| `BOT_TOKEN` | *required* | Bot token |
+| `STOAT_BASE_URL` | `https://stoat.chat/api` | Instance API URL (e.g. `https://trans.girls.rocks/api`) |
+| `PREFIX` | `!sb` | Command prefix |
+| `WEB_PORT` | `3000` | Web UI port |
+| `WEB_PASSWORD` | *(empty)* | Password for UI/API (`X-Token` header or `?token=`) |
+| `DEFAULT_CHANNEL_ID` | *(empty)* | Default text channel for `▶ Send` |
+| `VOICE_CHANNEL_ID` | *(empty)* | Default voice channel for `🔊 Voice` |
+| `MAX_FILE_SIZE_MB` | `8` | Max upload size |
+
+## Usage
+
+### Web UI (recommended)
+
+- Open `http://YOUR_SERVER:3000` → enter `WEB_PASSWORD` → `Unlock`
+- Top: stylish **Text** / **Voice** channel selectors (grouped by server, `#` / `🔊` icons, paste ID fallback)
+- **Upload**: name `a-z0-9_-` (1-30 chars) + category + drag file → `Upload` → preview via `<audio>`
+- **Play**: `▶ Send` posts `🔊 name` + file in the selected text channel; `🔊 Voice` joins the selected voice channel and streams live
+- **Voice controls**: `Join Voice` / `Leave` / `⏹ Stop` — bot auto-leaves after 5-10 min idle
+- **Manage**: `Delete` / `Rename`, search, category filter (`All` / `General` / `V1` ...)
+
+### Bot Commands
+
+- `!sb help` — help
+- `!sb list` — list sounds
+- `!sb add <name>` + attachment — add (also via UI)
+- `!sb play <name>` or `!sb <name>` — post in text
+- `!sb delete <name>` / `!sb rename <old> <new>`
+- `!sb vjoin [voiceChannelId]` — join voice (auto if you're in one)
+- `!sb vplay <name> [voiceChannelId]` — play in voice
+- `!sb vleave` / `!sb vstop`
+
+Uploads via UI and via `!sb add` share the same storage (`./sounds` + `sounds.json`).
 
 ## API
 
-| Méthode | Route | Auth | Description |
-|---------|-------|------|-------------|
-| GET | `/api/health` | non | status bot + count |
-| GET | `/api/sounds` | `X-Token` si `WEB_PASSWORD` | liste |
-| POST | `/api/sounds` | `X-Token` | `form: name, file` multipart |
-| DELETE | `/api/sounds/:name` | `X-Token` | supprime |
-| POST | `/api/sounds/:name/rename` | `X-Token` | `{newName}` |
-| POST | `/api/play/:name` | `X-Token` | `{channelId}` — bot envoie dans Stoat |
-| GET | `/sounds/:filename` | non | preview audio |
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/health` | no | `botReady`, `sounds` count |
+| `GET` | `/api/sounds` | `X-Token` if set | list + `categories` |
+| `POST` | `/api/sounds` | `X-Token` | `form: name, category, file` |
+| `DELETE` | `/api/sounds/:name` | `X-Token` | delete |
+| `POST` | `/api/sounds/:name/rename` | `X-Token` | `{newName}` |
+| `POST` | `/api/play/:name` | `X-Token` | `{channelId}` text |
+| `POST` | `/api/voice/play/:name` | `X-Token` | `{channelId}` voice |
+| `POST` | `/api/voice/join` | `X-Token` | `{channelId}` |
+| `POST` | `/api/voice/leave` | `X-Token` | `{channelId}` |
+| `GET` | `/api/channels` | `X-Token` | servers + channels for selectors |
+| `GET` | `/sounds/:filename` | no | preview |
 
-Auth: header `X-Token: WEB_PASSWORD` ou `?token=` ou `Authorization: Bearer`.
+Auth: `X-Token: WEB_PASSWORD` or `?token=` or `Authorization: Bearer`.
 
-## Env
+## Voice
 
-- `BOT_TOKEN` requis
-- `PREFIX` défaut `!sb`
-- `WEB_PORT` défaut `3000`
-- `WEB_PASSWORD` défaut vide (ouvert sur WG — mets un mdp si le WG est partagé)
-- `DEFAULT_CHANNEL_ID` défaut vide
-- `MAX_FILE_SIZE_MB` défaut `8`
+Powered by `revoice.js` + `@livekit/rtc-node` + `ffmpeg-static`. Requires `Connect` + `Speak` permission in the voice channel. The web UI and `!sb vplay` both use the same LiveKit flow (`join` → `play` → `MediaPlayer.playStream`).
 
-## Structure
+If `AlreadyConnected` appears after a restart, the previous LiveKit session is stale — wait 30-40s or kick the bot from the voice channel in the UI and re-`Join`.
+
+## Project Structure
+
 ```
-src/index.js:1   # lance bot + web
-src/bot.js:1     # Client stoat.js, handlePlay(), playInChannel()
-src/sounds.js:1  # registry partagé (getSounds, addSound...)
-src/server.js:1  # Express + multer, API + static
-public/index.html:1 # UI
-sounds/          # stockage + sounds.json
+src/index.js   # start bot + web
+src/bot.js     # stoat.js Client, text handlePlay
+src/voice.js   # revoice LiveKit, join/play/leave, idle timers
+src/sounds.js  # registry
+src/server.js  # Express + multer + API
+public/index.html # UI (login, channel selectors, categories)
+sounds/        # audio + sounds.json (Docker volume)
 ```
 
-## WireGuard — notes
-- Assure-toi que le NAS peut résoudre `stoat.chat` via le WG (DNS sortant autorisé).
-- Si tu veux accéder à l'UI depuis l'extérieur sans WG, mets un reverse proxy (Tailscale Funnel / Cloudflare Tunnel) mais garde `WEB_PASSWORD`.
-- Le bind `127.0.0.1` dans compose limite à localhost du NAS → si tu accèdes via `192.168.1.83` depuis le WG, retire le préfixe `127.0.0.1:`.
+## Reverse Proxy / HTTPS
+
+No port to open for the bot (outbound WebSocket only). For the UI, use a reverse proxy:
+
+- **Caddy + DuckDNS** example in `caddy-duckdns/` (DNS-01 Let's Encrypt)
+- **Cloudflare Tunnel** (`cloudflared tunnel --url http://localhost:3000`) → `https://xxx.trycloudflare.com` (zero open ports) + optional Cloudflare Access
+
+Always set `WEB_PASSWORD` when exposing publicly.
 
 ## Troubleshooting
-- `Missing BOT_TOKEN` — `.env` non chargé (`docker compose config` pour vérifier)
-- `channel_not_found` — mauvais Channel ID ou bot pas dans le serveur
-- `bot_not_ready` — attends `ready` dans les logs, token invalide ?
-- Upload rejeté — vérifie extension/MIME audio et `MAX_FILE_SIZE_MB`
+
+- `Missing BOT_TOKEN` — check `.env` (`docker compose config`)
+- `channel_not_found` — wrong ID or bot not in server
+- `bot_not_ready` — wait for `ready` log, check token + `STOAT_BASE_URL`
+- `401 Unauthorized` — wrong `WEB_PASSWORD` (`X-Token`)
+- Upload rejected — check `audio/*` MIME and `MAX_FILE_SIZE_MB`
