@@ -158,6 +158,22 @@ app.post("/api/voice/stop", auth, async (req,res)=>{
     res.json({ ok:true });
   } catch(e){ res.status(500).json({ error: e.message }); }
 });
+app.post("/api/voice/volume", auth, async (req,res)=>{
+  const vol = parseFloat(req.body.volume ?? req.query.volume);
+  const channelId = (req.body.channelId || req.query.channelId || "").trim();
+  if (isNaN(vol)) return res.status(400).json({ error: "missing_volume" });
+  try{
+    const { setVolume } = await import("./voice.js");
+    const r = await setVolume(vol, channelId||null);
+    res.json({ ok:true, ...r });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.get("/api/voice/volume", auth, async (req,res)=>{
+  try{
+    const { getVolume } = await import("./voice.js");
+    res.json({ volume: getVolume() });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
 
 // Channels - fetch via API to get real names
 app.get("/api/channels", auth, async (req,res)=>{

@@ -151,6 +151,8 @@ export async function playInVoice(channelId, soundName) {
     try { old.stop(); } catch {}
   }
   const player = new MediaPlayer();
+  const vol = getVolume();
+  try{ player.setVolume(vol); }catch{}
   players.set(channelId, player);
   player.once("finish", ()=> armIdle(channelId));
   player.once("error", ()=> armIdle(channelId));
@@ -195,3 +197,15 @@ export async function stopVoice(channelId) {
   armIdle(channelId);
   return true;
 }
+export async function setVolume(volume, channelId){
+  const vol = Math.max(0, Math.min(2, Number(volume)||1));
+  for(const [cid, player] of players.entries()){
+    if(channelId && cid!==channelId) continue;
+    try{ player.setVolume(vol); }catch(e){ console.warn("[voice] setVolume fail", e.message); }
+  }
+  // store for next player
+  globalThis._voiceVol = vol;
+  console.info(`[voice] volume set ${vol} for ${channelId||'all'}`);
+  return { volume: vol };
+}
+export function getVolume(){ return globalThis._voiceVol ?? 1; }
