@@ -143,19 +143,11 @@ export async function playInVoice(channelId, soundName) {
   if(playLock.has(channelId)){
     console.info(`[voice] cut previous in ${channelId} for ${soundName}`);
   }
-  // ensure any previous player is fully stopped and unpublished before new
+  // ensure any previous player is fully stopped before new (no manual unpublish - let revoice handle)
   for(const [cid, p] of Array.from(players.entries())){
-    try{
-      // try to unpublish track from LiveKit before stop
-      const conn = connections.get(cid);
-      if(conn?.room?.localParticipant && p.track){
-        try{ await conn.room.localParticipant.unpublishTrack(p.track, true); }catch{}
-      }
-    }catch{}
     try{ await p.stop(); }catch{}
     players.delete(cid);
   }
-  // gap to let LiveKit clean
   await new Promise(r=>setTimeout(r, 100));
   playLock.add(channelId);
   try{
