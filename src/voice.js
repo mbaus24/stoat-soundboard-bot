@@ -212,15 +212,12 @@ export async function stopVoice(channelId) {
   return true;
 }
 export async function stopAll(){
+  // stop all audio but stay in voice (so next play is instant, no re-join)
   for(const [cid, p] of Array.from(players.entries())){
-    try{ p.stop(); }catch{}
+    try{ await p.stop(); }catch{}
   }
   players.clear();
-  // also leave all voice channels quickly
-  for(const cid of Array.from(connections.keys())){
-    try{ await leaveVoice(cid); }catch{}
-  }
-  console.info("[voice] stopAll done");
+  console.info("[voice] stopAll done (stayed in voice)");
   return true;
 }
 export async function setVolume(volume, channelId){
