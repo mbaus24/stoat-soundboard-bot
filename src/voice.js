@@ -140,22 +140,25 @@ export async function leaveVoice(channelId) {
 let playLock = new Set();
 let playQueue = new Map(); // channelId -> promise chain to serialize
 export async function playInVoice(channelId, soundName) {
+  // immediate cut for spam same sound - don't wait for queue
+  if(playLock.has(channelId)){
+    console.info(`[voice] immediate cut for double-click ${soundName} in ${channelId}`);
+    for(const [cid, p] of Array.from(players.entries())){
+      try{ await p.stop(); }catch{}
+      players.delete(cid);
+    }
+  }
   const prev = playQueue.get(channelId) || Promise.resolve();
   let resolveLock;
   const cur = new Promise(r=> resolveLock = r);
   playQueue.set(channelId, cur);
   await prev.catch(()=>{});
   try{
-    // hard cut: stop all and wait for LiveKit to unpublish
     for(const [cid, p] of Array.from(players.entries())){
       try{ await p.stop(); }catch{}
       players.delete(cid);
     }
-    // ensure ffmpeg fully closed before next publish
-    await new Promise(r=>setTimeout(r, 280));
-    if(playLock.has(channelId)){
-      console.info(`[voice] cut previous in ${channelId} for ${soundName}`);
-    }
+    await new Promise(r=>setTimeout(r, 120));
     playLock.add(channelId);
     try{
       const entry = getEntry(soundName);
