@@ -147,37 +147,37 @@ export async function playInVoice(channelId, soundName) {
   playQueue.set(channelId, cur);
   await prev.catch(()=>{});
   try{
-  // ensure any previous player is fully stopped before new
-  for(const [cid, p] of Array.from(players.entries())){
-    try{ await p.stop(); }catch{}
-    players.delete(cid);
-  }
-  await new Promise(r=>setTimeout(r, 180));
-  if(playLock.has(channelId)){
-    console.info(`[voice] cut previous in ${channelId} for ${soundName}`);
-  }
-  playLock.add(channelId);
-  try{
-  const entry = getEntry(soundName);
-  if (!entry) throw new Error("not_found");
-  const filepath = path.join(SOUNDS_DIR, entry.filename);
-  if (!fs.existsSync(filepath)) throw new Error("file_missing");
-  const conn = await joinVoice(channelId);
-  clearIdle(channelId);
-  const player = new MediaPlayer();
-  const vol = getVolume();
-  try{ player.setVolume(vol); }catch{}
-  players.set(channelId, player);
-  player.once("finish", ()=> { armIdle(channelId); playLock.delete(channelId); });
-  player.once("error", ()=> { armIdle(channelId); playLock.delete(channelId); });
-  await conn.play(player);
-  await new Promise(r => setTimeout(r, 200));
-  player.playStream(fs.createReadStream(filepath));
-  console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}`);
-  setTimeout(()=> playLock.delete(channelId), 15000);
-  return { channelId, soundName, filename: entry.filename };
-  }finally{ setTimeout(()=> { playLock.delete(channelId); resolveLock(); playQueue.delete(channelId); }, 500); }
-}
+    // ensure any previous player is fully stopped before new
+    for(const [cid, p] of Array.from(players.entries())){
+      try{ await p.stop(); }catch{}
+      players.delete(cid);
+    }
+    await new Promise(r=>setTimeout(r, 180));
+    if(playLock.has(channelId)){
+      console.info(`[voice] cut previous in ${channelId} for ${soundName}`);
+    }
+    playLock.add(channelId);
+    try{
+      const entry = getEntry(soundName);
+      if (!entry) throw new Error("not_found");
+      const filepath = path.join(SOUNDS_DIR, entry.filename);
+      if (!fs.existsSync(filepath)) throw new Error("file_missing");
+      const conn = await joinVoice(channelId);
+      clearIdle(channelId);
+      const player = new MediaPlayer();
+      const vol = getVolume();
+      try{ player.setVolume(vol); }catch{}
+      players.set(channelId, player);
+      player.once("finish", ()=> { armIdle(channelId); playLock.delete(channelId); });
+      player.once("error", ()=> { armIdle(channelId); playLock.delete(channelId); });
+      await conn.play(player);
+      await new Promise(r => setTimeout(r, 200));
+      player.playStream(fs.createReadStream(filepath));
+      console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}`);
+      setTimeout(()=> playLock.delete(channelId), 15000);
+      return { channelId, soundName, filename: entry.filename };
+    }finally{ setTimeout(()=> playLock.delete(channelId), 500); }
+  }finally{ setTimeout(()=> { resolveLock(); playQueue.delete(channelId); }, 500); }
 }
 
 export function isVoiceConnected(channelId) {
