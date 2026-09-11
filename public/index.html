@@ -86,7 +86,7 @@ main{max-width:1280px;margin:0 auto;padding:24px;display:grid;grid-template-colu
       <input type="range" id="vol" min="0" max="200" value="100" style="width:100px;accent-color:var(--accent2);padding:0;border:none;background:transparent" oninput="$('volVal').textContent=this.value+'%'" onchange="setVol(this.value)"/>
       <span id="volVal" style="font-size:12px;min-width:36px">100%</span>
     </div>
-    <button onclick="stopAll()" style="background:#c1121f;border-color:#c1121f;color:#fff;font-weight:800" title="Stop all sounds instantly">⏹ STOP</button>
+    <button id="stopAllBtn" onclick="stopAll();this.blur()" style="background:#c1121f;border-color:#c1121f;color:#fff;font-weight:800" title="Stop all sounds instantly" type="button">⏹ STOP</button>
     <button class="secondary" onclick="logout()">Logout</button>
     <span id="status" class="badge">…</span>
   </div>

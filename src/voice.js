@@ -137,15 +137,21 @@ export async function leaveVoice(channelId) {
   return true;
 }
 
+let playLock = new Set();
 export async function playInVoice(channelId, soundName) {
+  if(playLock.has(channelId)) throw new Error("already_playing_try_again");
+  playLock.add(channelId);
+  try{
   const entry = getEntry(soundName);
   if (!entry) throw new Error("not_found");
   const filepath = path.join(SOUNDS_DIR, entry.filename);
   if (!fs.existsSync(filepath)) throw new Error("file_missing");
-  // global override: stop all other sounds first to avoid overlap
+  // global override: stop all other sounds first to avoid overlap - await properly
   for(const [cid, p] of Array.from(players.entries())){
-    try{ p.stop(); }catch{}
+    try{ await p.stop(); }catch{}
     players.delete(cid);
+    // small gap to let LiveKit unpublish
+    await new Promise(r=>setTimeout(r, 150));
   }
   const conn = await joinVoice(channelId);
   clearIdle(channelId);
@@ -153,13 +159,16 @@ export async function playInVoice(channelId, soundName) {
   const vol = getVolume();
   try{ player.setVolume(vol); }catch{}
   players.set(channelId, player);
-  player.once("finish", ()=> armIdle(channelId));
-  player.once("error", ()=> armIdle(channelId));
+  player.once("finish", ()=> { armIdle(channelId); playLock.delete(channelId); });
+  player.once("error", ()=> { armIdle(channelId); playLock.delete(channelId); });
   await conn.play(player);
   await new Promise(r => setTimeout(r, 200));
   player.playStream(fs.createReadStream(filepath));
   console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}`);
+  // auto-unlock after max duration + 2s
+  setTimeout(()=> playLock.delete(channelId), 15000);
   return { channelId, soundName, filename: entry.filename };
+  }finally{ setTimeout(()=> playLock.delete(channelId), 1000); }
 }
 
 export function isVoiceConnected(channelId) {
