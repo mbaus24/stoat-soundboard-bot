@@ -140,19 +140,19 @@ export async function leaveVoice(channelId) {
 let playLock = new Set();
 let playQueue = new Map(); // channelId -> promise chain to serialize
 export async function playInVoice(channelId, soundName) {
-  // serialize per channel to avoid overlap on spam
   const prev = playQueue.get(channelId) || Promise.resolve();
   let resolveLock;
   const cur = new Promise(r=> resolveLock = r);
   playQueue.set(channelId, cur);
   await prev.catch(()=>{});
   try{
-    // ensure any previous player is fully stopped before new
+    // hard cut: stop all and wait for LiveKit to unpublish
     for(const [cid, p] of Array.from(players.entries())){
       try{ await p.stop(); }catch{}
       players.delete(cid);
     }
-    await new Promise(r=>setTimeout(r, 180));
+    // ensure ffmpeg fully closed before next publish
+    await new Promise(r=>setTimeout(r, 280));
     if(playLock.has(channelId)){
       console.info(`[voice] cut previous in ${channelId} for ${soundName}`);
     }
