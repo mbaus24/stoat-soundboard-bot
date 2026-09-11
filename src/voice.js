@@ -137,10 +137,27 @@ export async function leaveVoice(channelId) {
   return true;
 }
 
-let playLock = new Set();
+let playLock = new Map(); // channelId -> timeout
+let lastPlay = new Map(); // channelId -> {name, time}
 export async function playInVoice(channelId, soundName) {
-  if(playLock.has(channelId)) throw new Error("already_playing_try_again");
-  playLock.add(channelId);
+  const now = Date.now();
+  const last = lastPlay.get(channelId);
+  if(last && last.name===soundName && now - last.time < 400){
+    console.info(`[voice] debounced spam ${soundName} in ${channelId}`);
+    throw new Error("spam_cooldown");
+  }
+  lastPlay.set(channelId, {name: soundName, time: now});
+  if(playLock.has(channelId)){
+    console.info(`[voice] already playing in ${channelId}, stopping previous and restarting ${soundName}`);
+    // force stop previous before new
+    for(const [cid, p] of Array.from(players.entries())){
+      try{ await p.stop(); }catch{}
+      players.delete(cid);
+    }
+    // small gap
+    await new Promise(r=>setTimeout(r, 120));
+  }
+  playLock.set(channelId, true);
   try{
   const entry = getEntry(soundName);
   if (!entry) throw new Error("not_found");
@@ -150,8 +167,7 @@ export async function playInVoice(channelId, soundName) {
   for(const [cid, p] of Array.from(players.entries())){
     try{ await p.stop(); }catch{}
     players.delete(cid);
-    // small gap to let LiveKit unpublish
-    await new Promise(r=>setTimeout(r, 150));
+    await new Promise(r=>setTimeout(r, 80));
   }
   const conn = await joinVoice(channelId);
   clearIdle(channelId);
@@ -165,10 +181,10 @@ export async function playInVoice(channelId, soundName) {
   await new Promise(r => setTimeout(r, 200));
   player.playStream(fs.createReadStream(filepath));
   console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}`);
-  // auto-unlock after max duration + 2s
   setTimeout(()=> playLock.delete(channelId), 15000);
   return { channelId, soundName, filename: entry.filename };
-  }finally{ setTimeout(()=> playLock.delete(channelId), 1000); }
+  }finally{ setTimeout(()=> playLock.delete(channelId), 500); }
+}
 }
 
 export function isVoiceConnected(channelId) {
