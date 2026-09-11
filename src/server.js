@@ -158,6 +158,13 @@ app.post("/api/voice/stop", auth, async (req,res)=>{
     res.json({ ok:true });
   } catch(e){ res.status(500).json({ error: e.message }); }
 });
+app.post("/api/voice/stop-all", auth, async (req,res)=>{
+  try{
+    const { stopAll } = await import("./voice.js");
+    await stopAll();
+    res.json({ ok:true });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
 app.post("/api/voice/volume", auth, async (req,res)=>{
   const vol = parseFloat(req.body.volume ?? req.query.volume);
   const channelId = (req.body.channelId || req.query.channelId || "").trim();

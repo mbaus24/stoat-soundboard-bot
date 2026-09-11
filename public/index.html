@@ -86,6 +86,7 @@ main{max-width:1280px;margin:0 auto;padding:24px;display:grid;grid-template-colu
       <input type="range" id="vol" min="0" max="200" value="100" style="width:100px;accent-color:var(--accent2);padding:0;border:none;background:transparent" oninput="$('volVal').textContent=this.value+'%'" onchange="setVol(this.value)"/>
       <span id="volVal" style="font-size:12px;min-width:36px">100%</span>
     </div>
+    <button onclick="stopAll()" style="background:#c1121f;border-color:#c1121f;color:#fff;font-weight:800" title="Stop all sounds instantly">⏹ STOP</button>
     <button class="secondary" onclick="logout()">Logout</button>
     <span id="status" class="badge">…</span>
   </div>
@@ -399,16 +400,28 @@ async function play(name){
     toast(`▶ ${name} sent`);
   }catch(e){ toast(e.message,true); }
 }
-async function playVoice(name){
+async function playVoice(name, isRetry=false){
   const channelId=getVoiceId();
   if(!channelId) return toast('Select a Voice channel first',true);
   try{
-    toast(`🔊 ${name} → voice...`);
+    if(!isRetry) toast(`🔊 ${name} → voice...`);
     const r=await fetch(`/api/voice/play/${encodeURIComponent(name)}`, { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify({ channelId }) });
     const j=await r.json();
     if(!r.ok) throw new Error(j.error || 'voice play failed');
     toast(`🔊 ${name} in voice`);
-  }catch(e){ toast(e.message,true); }
+  }catch(e){
+    const msg = e.message||'';
+    if(msg.includes('already_connected') && !isRetry){
+      toast('Bot stuck in voice (stale) — force reconnect...', true);
+      try{
+        await fetch('/api/voice/leave', { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({channelId}) });
+      }catch{}
+      await new Promise(r=>setTimeout(r, 2000));
+      // retry once after leave
+      return playVoice(name, true);
+    }
+    toast(e.message,true);
+  }
 }
 async function voiceJoin(){
   const channelId=getVoiceId();
@@ -440,6 +453,14 @@ async function voiceStop(){
     const j=await r.json();
     if(!r.ok) throw new Error(j.error);
     toast(`⏹ Stopped`);
+  }catch(e){ toast(e.message,true); }
+}
+async function stopAll(){
+  try{
+    const r=await fetch('/api/voice/stop-all', { method:'POST', headers: authHeaders() });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error);
+    toast('⏹ All stopped');
   }catch(e){ toast(e.message,true); }
 }
 async function del(name){

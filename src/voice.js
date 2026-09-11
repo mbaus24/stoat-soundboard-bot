@@ -96,25 +96,23 @@ export async function joinVoice(channelId, _retry=0) {
     const msg = e?.response?.data?.type || e?.message || String(e);
     const isAlready = msg.includes("AlreadyConnected") || JSON.stringify(e).includes("AlreadyConnected");
     if(isAlready){
-      console.warn(`[voice] AlreadyConnected for ${channelId}, trying to recover...`);
-      // try to find any existing connection for this server and leave it, then retry
-      if(_retry < 2){
-        // wait a bit for LiveKit to clear stale (server holds it ~30s)
-        await new Promise(r=>setTimeout(r, 3000));
-        // try to force leave via any existing connection on same server
-        for(const [cid, c] of connections.entries()){
-          try{ await c.leave(); }catch{}
+      console.warn(`[voice] AlreadyConnected for ${channelId}, trying to recover (retry ${_retry})...`);
+      if(_retry < 3){
+        const wait = 5000;
+        console.info(`[voice] waiting ${wait}ms for LiveKit stale to clear (retry ${_retry})...`);
+        await new Promise(r=>setTimeout(r, wait));
+        // try to force leave any local or revoice connections
+        for(const [cid, c] of Array.from(connections.entries())){
+          try{ await c.leave(); connections.delete(cid); }catch{}
         }
-        // also try revoice's internal connections
-        for(const [cid, c] of (rv.connections||new Map()).entries()){
-          if(cid!==channelId) continue;
-          try{ await c.leave(); }catch{}
+        for(const [cid, c] of Array.from((rv.connections||new Map()).entries())){
+          try{ await c.leave(); rv.connections.delete(cid); }catch{}
         }
-        // wait for server to clear
-        await new Promise(r=>setTimeout(r, 2000));
+        // also clear our Map to force fresh join
+        connections.delete(channelId);
         return joinVoice(channelId, _retry+1);
       }
-      throw new Error("already_connected_try_leave_first_or_wait_30s");
+      throw new Error("already_connected_stale_wait_40s_or_kick_bot_in_ui");
     }
     throw e;
   }
@@ -144,12 +142,13 @@ export async function playInVoice(channelId, soundName) {
   if (!entry) throw new Error("not_found");
   const filepath = path.join(SOUNDS_DIR, entry.filename);
   if (!fs.existsSync(filepath)) throw new Error("file_missing");
+  // global override: stop all other sounds first to avoid overlap
+  for(const [cid, p] of Array.from(players.entries())){
+    try{ p.stop(); }catch{}
+    players.delete(cid);
+  }
   const conn = await joinVoice(channelId);
   clearIdle(channelId);
-  const old = players.get(channelId);
-  if (old) {
-    try { old.stop(); } catch {}
-  }
   const player = new MediaPlayer();
   const vol = getVolume();
   try{ player.setVolume(vol); }catch{}
@@ -189,12 +188,30 @@ export function getVoiceDebug(channelId){
 }
 
 export async function stopVoice(channelId) {
-  const p = players.get(channelId);
-  if (p) {
-    p.stop();
-    players.delete(channelId);
+  if(channelId){
+    const p = players.get(channelId);
+    if (p) { try{ p.stop(); }catch{}; players.delete(channelId); }
+    armIdle(channelId);
+    return true;
   }
-  armIdle(channelId);
+  // stop all
+  for(const [cid, p] of Array.from(players.entries())){
+    try{ p.stop(); }catch{}
+    players.delete(cid);
+    armIdle(cid);
+  }
+  return true;
+}
+export async function stopAll(){
+  for(const [cid, p] of Array.from(players.entries())){
+    try{ p.stop(); }catch{}
+  }
+  players.clear();
+  // also leave all voice channels quickly
+  for(const cid of Array.from(connections.keys())){
+    try{ await leaveVoice(cid); }catch{}
+  }
+  console.info("[voice] stopAll done");
   return true;
 }
 export async function setVolume(volume, channelId){
