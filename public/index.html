@@ -400,9 +400,18 @@ async function play(name){
     toast(`▶ ${name} sent`);
   }catch(e){ toast(e.message,true); }
 }
+let lastVoicePlay = new Map();
 async function playVoice(name, isRetry=false){
   const channelId=getVoiceId();
   if(!channelId) return toast('Select a Voice channel first',true);
+  const now=Date.now();
+  const key=channelId+':'+name;
+  const last=lastVoicePlay.get(key);
+  if(last && now-last < 1000 && !isRetry){
+    toast('1s cooldown', true);
+    return;
+  }
+  lastVoicePlay.set(key, now);
   try{
     if(!isRetry) toast(`🔊 ${name} → voice...`);
     const r=await fetch(`/api/voice/play/${encodeURIComponent(name)}`, { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify({ channelId }) });
@@ -417,7 +426,6 @@ async function playVoice(name, isRetry=false){
         await fetch('/api/voice/leave', { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({channelId}) });
       }catch{}
       await new Promise(r=>setTimeout(r, 2000));
-      // retry once after leave
       return playVoice(name, true);
     }
     toast(e.message,true);

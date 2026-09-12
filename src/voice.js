@@ -125,15 +125,25 @@ export async function leaveVoice(channelId) {
     const rv = getRevoice();
     const c = rv.getVoiceConnection(channelId);
     if (c) {
-      await c.leave();
+      try{ await c.leave(); }catch{}
+      try{ rv.connections.delete(channelId); }catch{}
+      connections.delete(channelId);
+      players.delete(channelId);
+      await new Promise(r=>setTimeout(r, 800));
       return true;
     }
     throw new Error("not_connected");
   }
-  await conn.leave();
+  try{ await conn.leave(); }catch(e){ console.warn("[voice] leave error", e.message); }
   clearIdle(channelId);
   connections.delete(channelId);
   players.delete(channelId);
+  try{
+    const rv = getRevoice();
+    rv.connections.delete(channelId);
+  }catch{}
+  // wait for LiveKit to fully clear server voice state
+  await new Promise(r=>setTimeout(r, 800));
   return true;
 }
 
