@@ -69,7 +69,10 @@ export async function joinVoice(channelId, _retry=0) {
   }catch{}
   console.info(`[voice] joining ${channelId}...`);
   try{
-    const conn = await rv.join(channelId);
+    const conn = await Promise.race([
+      rv.join(channelId),
+      new Promise((_,rej)=> setTimeout(()=>rej(new Error("join_call_timeout")), 12000))
+    ]);
     connections.set(channelId, conn);
     conn.on("join", () => { console.info(`[voice] joined ${channelId}`); armIdle(channelId); });
     conn.on("leave", () => {
@@ -118,6 +121,17 @@ export async function joinVoice(channelId, _retry=0) {
   }
 }
 
+export function clearVoiceState(){
+  for(const cid of Array.from(connections.keys())){ try{ connections.delete(cid); }catch{} }
+  for(const cid of Array.from(players.keys())){ try{ players.delete(cid); }catch{} }
+  for(const cid of Array.from(idleTimers.keys())){ try{ clearIdle(cid); }catch{} }
+  try{
+    const rv = getRevoice();
+    for(const cid of Array.from((rv.connections||new Map()).keys())){ try{ rv.connections.delete(cid); }catch{} }
+  }catch{}
+  console.info("[voice] clearVoiceState done");
+  return true;
+}
 export async function leaveVoice(channelId) {
   clearIdle(channelId);
   const conn = connections.get(channelId);
@@ -132,7 +146,6 @@ export async function leaveVoice(channelId) {
       await new Promise(r=>setTimeout(r, 800));
       return true;
     }
-    // already not connected locally, but server may still think we are - treat as success to allow rejoin after wait
     connections.delete(channelId);
     players.delete(channelId);
     try{ getRevoice().connections.delete(channelId); }catch{}
@@ -146,7 +159,7 @@ export async function leaveVoice(channelId) {
     const rv = getRevoice();
     rv.connections.delete(channelId);
   }catch{}
-  await new Promise(r=>setTimeout(r, 1500));
+  await new Promise(r=>setTimeout(r, 800));
   return true;
 }
 

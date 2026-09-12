@@ -135,6 +135,13 @@ app.post("/api/voice/leave", auth, async (req,res)=>{
     res.json({ ok:true, channelId });
   } catch(e){ res.status(500).json({ error: e.message }); }
 });
+app.post("/api/voice/clear", auth, async (req,res)=>{
+  try{
+    const { clearVoiceState } = await import("./voice.js");
+    clearVoiceState();
+    res.json({ ok:true, cleared: true });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
 app.post("/api/voice/play/:name", auth, async (req,res)=>{
   const name = req.params.name.toLowerCase();
   const channelId = (req.body.channelId || req.query.channelId || DEFAULT_VOICE || "").trim();
