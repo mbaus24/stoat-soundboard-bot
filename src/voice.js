@@ -98,7 +98,7 @@ export async function joinVoice(channelId, _retry=0) {
     if(isAlready){
       console.warn(`[voice] AlreadyConnected for ${channelId}, trying to recover (retry ${_retry})...`);
       if(_retry < 3){
-        const wait = 5000;
+        const wait = _retry===0 ? 15000 : 5000;
         console.info(`[voice] waiting ${wait}ms for LiveKit stale to clear (retry ${_retry})...`);
         await new Promise(r=>setTimeout(r, wait));
         // try to force leave any local or revoice connections
@@ -146,7 +146,7 @@ export async function leaveVoice(channelId) {
     const rv = getRevoice();
     rv.connections.delete(channelId);
   }catch{}
-  await new Promise(r=>setTimeout(r, 800));
+  await new Promise(r=>setTimeout(r, 1500));
   return true;
 }
 
