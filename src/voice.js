@@ -132,7 +132,11 @@ export async function leaveVoice(channelId) {
       await new Promise(r=>setTimeout(r, 800));
       return true;
     }
-    throw new Error("not_connected");
+    // already not connected locally, but server may still think we are - treat as success to allow rejoin after wait
+    connections.delete(channelId);
+    players.delete(channelId);
+    try{ getRevoice().connections.delete(channelId); }catch{}
+    return true;
   }
   try{ await conn.leave(); }catch(e){ console.warn("[voice] leave error", e.message); }
   clearIdle(channelId);
@@ -142,7 +146,6 @@ export async function leaveVoice(channelId) {
     const rv = getRevoice();
     rv.connections.delete(channelId);
   }catch{}
-  // wait for LiveKit to fully clear server voice state
   await new Promise(r=>setTimeout(r, 800));
   return true;
 }
