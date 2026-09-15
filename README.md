@@ -1,6 +1,6 @@
 # Stoat Soundboard
 
-Self-hosted soundboard for [Stoat](https://stoat.chat) (and any Stoat-compatible instance) — upload audio files, organize by categories, and trigger them in text channels or live in voice channels via [LiveKit](https://livekit.io).
+Self-hosted soundboard for [Stoat](https://stoat.chat) (and any Stoat-compatible instance) — upload audio files, organize by categories and people, and trigger them live in voice channels via [LiveKit](https://livekit.io).
 
 Built on [`stoat.js`](https://github.com/stoatchat/javascript-client-sdk) and [`revoice.js`](https://github.com/ShadowLp174/revoice.js), with a clean web UI and a single Docker container. Based on [awesome-stoat](https://github.com/stoatchat/awesome-stoat).
 
@@ -8,12 +8,13 @@ Built on [`stoat.js`](https://github.com/stoatchat/javascript-client-sdk) and [`
 
 ## Features
 
-- **Web UI** — drag & drop upload, preview, search, category filters, login with password
-- **Categories** — group sounds (e.g. General, V1, V2, Out of Context) with filter bar
-- **Text playback** — bot posts the audio file as an attachment in any text channel
+- **Web UI** — drag & drop upload, preview, search, category + people filters, login with password (24h session)
+- **Categories** — group sounds (e.g. General, V1, V2) with filter bar
+- **People tags** — assign one or more people to a sound, filter by person (color-coded)
 - **Voice playback** — bot joins a voice channel and streams the audio live (ffmpeg → LiveKit)
 - **Auto-leave** — voice disconnects after 5-10 min idle
-- **Bot commands** — `!sb` prefix for add/list/play/delete/rename and voice controls
+- **Bot commands** — `!sb` prefix for add/list/delete/rename and voice controls
+- **Backups** — daily save of sounds + registry (cron), manual save from UI
 - **Single container** — bot + web UI share `./sounds` volume, `sounds.json` registry
 - **Secure** — optional `WEB_PASSWORD` (`X-Token`), HTTPS-ready via reverse proxy or Cloudflare Tunnel
 
@@ -66,11 +67,13 @@ Copy `.env.example` to `.env`:
 
 ### Web UI (recommended)
 
-- Open `http://YOUR_SERVER:3000` → enter `WEB_PASSWORD` → `Unlock`
-- Top: stylish **Text** / **Voice** channel selectors (grouped by server, `#` / `🔊` icons, paste ID fallback)
-- **Upload**: name `a-z0-9_-` (1-30 chars) + category + drag file → `Upload` → preview via `<audio>`
-- **Play**: `▶ Send` posts `🔊 name` + file in the selected text channel; `🔊 Voice` joins the selected voice channel and streams live
+- Open `http://YOUR_SERVER:3000` → enter `WEB_PASSWORD` → `Unlock` (session lasts 24h)
+- Top: **Voice** channel selector (grouped by server, `🔊` icon, paste ID fallback)
+- **Upload**: name `a-z0-9_-` (1-30 chars) + category + people + drag file → `Upload` → preview via `<audio>` (bulk folder upload supported)
+- **Play**: `🔊 Voice` joins the selected voice channel and streams live
+- **People**: assign one or more people per sound (`Edit`), filter by person chips on top (in addition to category filters)
 - **Voice controls**: `Join Voice` / `Leave` / `⏹ Stop` — bot auto-leaves after 5-10 min idle
+- **Backups**: `Save now` button, plus daily 02:00 cron
 - **Manage**: `Delete` / `Rename`, search, category filter (`All` / `General` / `V1` ...)
 
 ### Bot Commands
@@ -78,9 +81,8 @@ Copy `.env.example` to `.env`:
 - `!sb help` — help
 - `!sb list` — list sounds
 - `!sb add <name>` + attachment — add (also via UI)
-- `!sb play <name>` or `!sb <name>` — post in text
 - `!sb delete <name>` / `!sb rename <old> <new>`
-- `!sb vjoin [voiceChannelId]` — join voice (auto if you're in one)
+- `!sb vjoin [voiceChannelId]` — join voice
 - `!sb vplay <name> [voiceChannelId]` — play in voice
 - `!sb vleave` / `!sb vstop`
 
@@ -91,11 +93,12 @@ Uploads via UI and via `!sb add` share the same storage (`./sounds` + `sounds.js
 | Method | Route | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/health` | no | `botReady`, `sounds` count |
-| `GET` | `/api/sounds` | `X-Token` if set | list + `categories` |
-| `POST` | `/api/sounds` | `X-Token` | `form: name, category, file` |
+| `GET` | `/api/sounds` | `X-Token` if set | list + `categories` + `allPeople` |
+| `POST` | `/api/sounds` | `X-Token` | `form: name, category, people, file` |
 | `DELETE` | `/api/sounds/:name` | `X-Token` | delete |
 | `POST` | `/api/sounds/:name/rename` | `X-Token` | `{newName}` |
-| `POST` | `/api/play/:name` | `X-Token` | `{channelId}` text |
+| `POST` | `/api/sounds/:name/people` | `X-Token` | `{people: [...]}` |
+| `POST` | `/api/backup` | `X-Token` | manual backup, returns tarball name |
 | `POST` | `/api/voice/play/:name` | `X-Token` | `{channelId}` voice |
 | `POST` | `/api/voice/join` | `X-Token` | `{channelId}` |
 | `POST` | `/api/voice/leave` | `X-Token` | `{channelId}` |
@@ -119,16 +122,29 @@ If `AlreadyConnected` appears after a restart, the previous LiveKit session is s
 - **Gateway** — `client.on('error'/'disconnected')` + `unhandledRejection` keep web UI alive even if bot token invalid
 - **Channels** — `GET /api/channels` fetches real names via `client.api.get` with `voice` detection for stylish selectors
 
+## Backups
+
+Sounds + `sounds.json` are saved daily at 02:00 via a host cron job plus on demand from the UI (`Save now` → `POST /api/backup`):
+
+```bash
+# TrueNAS host — install once
+(crontab -l 2>/dev/null; echo "0 2 * * * /home/truenas_admin/stoat-soundboard-bot/scripts/backup.sh >> /var/log/soundboard-backup.log 2>&1") | crontab -
+```
+
+Tarballs land in `./backups/sounds-YYYYMMDD-HHMMSS.tar.gz` (last 14 kept). Restore: stop the container, `tar -xzf backups/<file>`, restart.
+
 ## Project Structure
 
 ```
 src/index.js   # start bot + web
-src/bot.js     # stoat.js Client, text handlePlay
+src/bot.js     # stoat.js Client, voice + registry commands
 src/voice.js   # revoice LiveKit, join/play/leave, idle timers
-src/sounds.js  # registry
+src/sounds.js  # registry (categories + people)
 src/server.js  # Express + multer + API
-public/index.html # UI (login, channel selectors, categories)
+public/index.html # UI (login, channel selectors, categories, people)
+scripts/backup.sh # daily backup of sounds/
 sounds/        # audio + sounds.json (Docker volume)
+backups/       # backup tarballs (Docker volume)
 ```
 
 ## Reverse Proxy / HTTPS

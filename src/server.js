@@ -3,7 +3,8 @@ import multer from "multer";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { getSounds, addSound, deleteSound, renameSound, SOUNDS_DIR } from "./sounds.js";
+import { execFile } from "node:child_process";
+import { getSounds, addSound, deleteSound, renameSound, setPeople, SOUNDS_DIR } from "./sounds.js";
 import { client } from "./bot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -40,10 +41,11 @@ app.get("/sounds/:filename", async (req, res) => {
 // API
 app.get("/api/sounds", auth, (req, res) => {
   const sounds = getSounds();
-  const list = Object.entries(sounds).map(([name, meta]) => ({ name, ...meta }));
+  const list = Object.entries(sounds).map(([name, meta]) => ({ name, people: [], ...meta }));
   list.sort((a,b)=>a.name.localeCompare(b.name));
   const categories = [...new Set(list.map(s => s.category || "General"))].sort();
-  res.json({ sounds: list, categories, defaultChannel: DEFAULT_CHANNEL, defaultVoice: DEFAULT_VOICE });
+  const allPeople = [...new Set(list.flatMap(s => s.people || []))].sort((a,b)=>a.localeCompare(b));
+  res.json({ sounds: list, categories, allPeople, defaultChannel: DEFAULT_CHANNEL, defaultVoice: DEFAULT_VOICE });
 });
 
 const upload = multer({
@@ -55,19 +57,49 @@ const upload = multer({
   }
 });
 
+function parsePeopleField(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string" && v.trim()) {
+    try {
+      const parsed = JSON.parse(v);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {}
+    return v.split(",");
+  }
+  return [];
+}
+
 app.post("/api/sounds", auth, upload.single("file"), async (req, res) => {
   const name = (req.body.name || "").toLowerCase().trim();
   const category = (req.body.category || "General").trim();
+  const people = parsePeopleField(req.body.people);
   if (!name || !/^[a-z0-9_-]{1,30}$/.test(name)) return res.status(400).json({ error: "invalid_name", detail: "a-z,0-9,_,-, 1-30 chars" });
   if (!req.file) return res.status(400).json({ error: "missing_file" });
   try {
-    const entry = await addSound(name, { filename: req.file.originalname, data: req.file.buffer, uploader: "web", contentType: req.file.mimetype, category });
+    const entry = await addSound(name, { filename: req.file.originalname, data: req.file.buffer, uploader: "web", contentType: req.file.mimetype, category, people });
     res.json({ ok: true, name, entry });
   } catch (e) {
     if (e.message === "exists") return res.status(409).json({ error: "exists" });
     if (e.message === "invalid_name") return res.status(400).json({ error: "invalid_name" });
     res.status(500).json({ error: e.message });
   }
+});
+
+app.post("/api/sounds/:name/people", auth, async (req, res) => {
+  try {
+    const entry = await setPeople(req.params.name, parsePeopleField(req.body.people));
+    res.json({ ok: true, name: req.params.name.toLowerCase(), people: entry.people });
+  } catch(e){ res.status(e.message==="not_found"?404:400).json({ error: e.message }); }
+});
+
+// Manual backup trigger (same tarball layout as scripts/backup.sh)
+app.post("/api/backup", auth, (req, res) => {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const out = path.join(__dirname, "..", "backups", `sounds-${stamp}.tar.gz`);
+  execFile("sh", ["scripts/backup.sh", out], { cwd: path.join(__dirname, "..") }, (err, stdout, stderr) => {
+    if (err) return res.status(500).json({ error: (stderr || err.message).trim().slice(0, 300) });
+    res.json({ ok: true, file: path.basename(out), log: String(stdout || "").trim().slice(0, 500) });
+  });
 });
 
 app.delete("/api/sounds/:name", auth, async (req, res) => {

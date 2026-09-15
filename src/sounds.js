@@ -22,7 +22,20 @@ export async function saveRegistry() {
 
 export function getEntry(name) { return sounds[name.toLowerCase()]; }
 
-export async function addSound(name, { filename, data, uploader, contentType, category }) {
+export function normalizePeople(input) {
+  const arr = Array.isArray(input) ? input : String(input || "").split(",");
+  const out = [];
+  for (let p of arr) {
+    p = String(p || "").trim();
+    if (!p) continue;
+    if (p.length > 24) p = p.slice(0, 24);
+    if (!out.includes(p)) out.push(p);
+    if (out.length >= 14) break;
+  }
+  return out;
+}
+
+export async function addSound(name, { filename, data, uploader, contentType, category, people }) {
   const key = name.toLowerCase();
   if (sounds[key]) throw new Error("exists");
   if (!/^[a-z0-9_-]{1,30}$/.test(key)) throw new Error("invalid_name");
@@ -31,9 +44,18 @@ export async function addSound(name, { filename, data, uploader, contentType, ca
   const dest = path.join(SOUNDS_DIR, destName);
   await fs.writeFile(dest, data);
   const cat = (category || "General").trim() || "General";
-  sounds[key] = { filename: destName, uploader: uploader || "web", createdAt: new Date().toISOString(), size: data.length, contentType, category: cat };
+  sounds[key] = { filename: destName, uploader: uploader || "web", createdAt: new Date().toISOString(), size: data.length, contentType, category: cat, people: normalizePeople(people) };
   await saveRegistry();
   return sounds[key];
+}
+
+export async function setPeople(name, people) {
+  const key = name.toLowerCase();
+  const entry = sounds[key];
+  if (!entry) throw new Error("not_found");
+  entry.people = normalizePeople(people);
+  await saveRegistry();
+  return entry;
 }
 
 export async function deleteSound(name) {

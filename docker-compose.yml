@@ -14,6 +14,7 @@ services:
       - DEFAULT_CHANNEL_ID=${DEFAULT_CHANNEL_ID:-}
     volumes:
       - ./sounds:/app/sounds
+      - ./backups:/app/backups
     ports:
       - "${WEB_PORT:-3000}:${WEB_PORT:-3000}"
     logging:
