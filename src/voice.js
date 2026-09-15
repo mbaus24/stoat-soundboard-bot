@@ -51,6 +51,9 @@ function armIdle(channelId){
 }
 
 export async function joinVoice(channelId, _retry=0) {
+  return lockedJoin(channelId, _retry);
+}
+async function joinVoiceInner(channelId, _retry=0) {
   if (!channelId) throw new Error("missing_channelId");
   const rv = getRevoice();
   if (connections.has(channelId)){
@@ -113,7 +116,7 @@ export async function joinVoice(channelId, _retry=0) {
         }
         // also clear our Map to force fresh join
         connections.delete(channelId);
-        return joinVoice(channelId, _retry+1);
+        return joinVoiceInner(channelId, _retry+1);
       }
       throw new Error("already_connected_stale_wait_40s_or_kick_bot_in_ui");
     }
@@ -164,33 +167,49 @@ export async function leaveVoice(channelId) {
 }
 
 let playLock = new Set();
+let joinLocks = new Map();
+async function lockedJoin(channelId, _retry=0) {
+  if (joinLocks.has(channelId)) return joinLocks.get(channelId);
+  const p = joinVoiceInner(channelId, _retry);
+  joinLocks.set(channelId, p);
+  try { return await p; } finally { joinLocks.delete(channelId); }
+}
 export async function playInVoice(channelId, soundName) {
-  for(const [cid, p] of Array.from(players.entries())){
-    try{ await p.stop(); }catch{}
-    players.delete(cid);
+  const entry = getEntry(soundName);
+  if (!entry) throw new Error("not_found");
+  const filepath = path.join(SOUNDS_DIR, entry.filename);
+  if (!fs.existsSync(filepath)) throw new Error("file_missing");
+  // single active voice connection: leave others first to avoid multi-spawn lag
+  for (const cid of Array.from(connections.keys())) {
+    if (cid !== channelId) { try { await leaveVoice(cid); } catch {} }
   }
-  await new Promise(r=>setTimeout(r, 80));
+  const conn = await lockedJoin(channelId);
+  clearIdle(channelId);
+  // reuse one player per channel so we never stack LiveKit tracks
+  let player = players.get(channelId);
+  if (!player) {
+    player = new MediaPlayer();
+    try { player.setVolume(getVolume()); } catch {}
+    players.set(channelId, player);
+    player.on("finish", () => { armIdle(channelId); });
+    player.on("error", () => { armIdle(channelId); });
+    await conn.play(player);
+    await new Promise(r => setTimeout(r, 200));
+  } else {
+    try { await player.stop(); } catch {}
+    try { player.setVolume(getVolume()); } catch {}
+    // ensure connection uses this player (re-publish only if replaced)
+    if (conn.media !== player) {
+      await conn.play(player);
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
   playLock.add(channelId);
-    try{
-      const entry = getEntry(soundName);
-      if (!entry) throw new Error("not_found");
-      const filepath = path.join(SOUNDS_DIR, entry.filename);
-      if (!fs.existsSync(filepath)) throw new Error("file_missing");
-      const conn = await joinVoice(channelId);
-      clearIdle(channelId);
-      const player = new MediaPlayer();
-      const vol = getVolume();
-      try{ player.setVolume(vol); }catch{}
-      players.set(channelId, player);
-  player.once("finish", ()=> { armIdle(channelId); playLock.delete(channelId); });
-  player.once("error", ()=> { armIdle(channelId); playLock.delete(channelId); });
-  await conn.play(player);
-  await new Promise(r => setTimeout(r, 200));
-  player.playStream(fs.createReadStream(filepath));
-  console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}`);
-  setTimeout(()=> playLock.delete(channelId), 15000);
-  return { channelId, soundName, filename: entry.filename };
-  }finally{ setTimeout(()=> playLock.delete(channelId), 500); }
+  try {
+    player.playStream(fs.createReadStream(filepath));
+    console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}`);
+    return { channelId, soundName, filename: entry.filename };
+  } finally { setTimeout(() => playLock.delete(channelId), 500); }
 }
 
 export function isVoiceConnected(channelId) {
@@ -221,14 +240,13 @@ export function getVoiceDebug(channelId){
 export async function stopVoice(channelId) {
   if(channelId){
     const p = players.get(channelId);
-    if (p) { try{ p.stop(); }catch{}; players.delete(channelId); }
+    // keep player instance so next play reuses the same published track
+    if (p) { try{ await p.stop(); }catch{} }
     armIdle(channelId);
     return true;
   }
-  // stop all
   for(const [cid, p] of Array.from(players.entries())){
-    try{ p.stop(); }catch{}
-    players.delete(cid);
+    try{ await p.stop(); }catch{}
     armIdle(cid);
   }
   return true;
@@ -238,7 +256,6 @@ export async function stopAll(){
   for(const [cid, p] of Array.from(players.entries())){
     try{ await p.stop(); }catch{}
   }
-  players.clear();
   console.info("[voice] stopAll done (stayed in voice)");
   return true;
 }
