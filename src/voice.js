@@ -71,7 +71,7 @@ export async function joinVoice(channelId, _retry=0) {
   try{
     const conn = await Promise.race([
       rv.join(channelId),
-      new Promise((_,rej)=> setTimeout(()=>rej(new Error("join_call_timeout")), 12000))
+      new Promise((_,rej)=> setTimeout(()=>rej(new Error("join_call_timeout")), 30000))
     ]);
     connections.set(channelId, conn);
     conn.on("join", () => { console.info(`[voice] joined ${channelId}`); armIdle(channelId); });
