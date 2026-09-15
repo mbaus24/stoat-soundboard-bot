@@ -74,7 +74,7 @@ async function joinVoiceInner(channelId, _retry=0) {
   try{
     const conn = await Promise.race([
       rv.join(channelId),
-      new Promise((_,rej)=> setTimeout(()=>rej(new Error("join_call_timeout")), 30000))
+      new Promise((_,rej)=> setTimeout(()=>rej(new Error("join_call_timeout_voice_server_not_responding")), 12000))
     ]);
     connections.set(channelId, conn);
     conn.on("join", () => { console.info(`[voice] joined ${channelId}`); armIdle(channelId); });
