@@ -436,12 +436,8 @@ async function playVoice(name, isRetry=false){
   }catch(e){
     const msg = e.message||'';
     if(msg.includes('already_connected') && !isRetry){
-      toast('Bot stuck in voice (stale) — force reconnect...', true);
-      try{
-        await fetch('/api/voice/leave', { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({channelId}) });
-      }catch{}
-      await new Promise(r=>setTimeout(r, 2000));
-      return playVoice(name, true);
+      toast('Bot stuck in voice on server — kick it from voice in Stoat, wait 1 min, try once (no spam)', true);
+      return;
     }
     toast(e.message,true);
   }

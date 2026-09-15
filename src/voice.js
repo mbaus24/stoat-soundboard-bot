@@ -102,23 +102,20 @@ async function joinVoiceInner(channelId, _retry=0) {
     const msg = e?.response?.data?.type || e?.message || String(e);
     const isAlready = msg.includes("AlreadyConnected") || JSON.stringify(e).includes("AlreadyConnected");
     if(isAlready){
-      console.warn(`[voice] AlreadyConnected for ${channelId}, trying to recover (retry ${_retry})...`);
-      if(_retry < 3){
-        const wait = _retry===0 ? 15000 : 5000;
-        console.info(`[voice] waiting ${wait}ms for LiveKit stale to clear (retry ${_retry})...`);
-        await new Promise(r=>setTimeout(r, wait));
-        // try to force leave any local or revoice connections
-        for(const [cid, c] of Array.from(connections.entries())){
-          try{ await c.leave(); connections.delete(cid); }catch{}
-        }
-        for(const [cid, c] of Array.from((rv.connections||new Map()).entries())){
-          try{ await c.leave(); rv.connections.delete(cid); }catch{}
-        }
-        // also clear our Map to force fresh join
-        connections.delete(channelId);
-        return joinVoiceInner(channelId, _retry+1);
+      // server holds a stale voice session for the bot (common after restart).
+      // Clear anything local instantly and fail fast — long waits hang the HTTP
+      // request (Caddy 502) and spam-clicking join_call lags the voice server.
+      console.warn(`[voice] AlreadyConnected for ${channelId}, clearing local state, fail fast`);
+      for(const [cid, c] of Array.from(connections.entries())){
+        try{ await c.leave(); }catch{}
+        connections.delete(cid);
       }
-      throw new Error("already_connected_stale_wait_40s_or_kick_bot_in_ui");
+      for(const [cid, c] of Array.from((rv.connections||new Map()).entries())){
+        try{ await c.leave(); }catch{}
+        rv.connections.delete(cid);
+      }
+      connections.delete(channelId);
+      throw new Error("already_connected_stale_kick_bot_from_voice_then_retry_once");
     }
     throw e;
   }
@@ -180,9 +177,11 @@ export async function playInVoice(channelId, soundName) {
   const filepath = path.join(SOUNDS_DIR, entry.filename);
   if (!fs.existsSync(filepath)) throw new Error("file_missing");
   // single active voice connection: leave others first to avoid multi-spawn lag
+  let leftOther = false;
   for (const cid of Array.from(connections.keys())) {
-    if (cid !== channelId) { try { await leaveVoice(cid); } catch {} }
+    if (cid !== channelId) { try { await leaveVoice(cid); leftOther = true; } catch {} }
   }
+  if (leftOther) await new Promise(r => setTimeout(r, 2000));
   const conn = await lockedJoin(channelId);
   clearIdle(channelId);
   // reuse one player per channel so we never stack LiveKit tracks
