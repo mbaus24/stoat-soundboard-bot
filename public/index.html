@@ -437,11 +437,12 @@ function render(){
     const cat=s.category||'General';
     const tags=(s.people||[]).map(p=>`<span class="person-dot" style="background:${peopleColor(p)}" title="${p}"></span>${p}`).join(' ');
     const picker=PEOPLE.map(([p,c])=>`<button class="person-chip${(s.people||[]).includes(p)?' active':''}" style="color:${c}" onclick="togglePerson('${s.name}','${p}')"><span class="dot" style="background:${c}"></span>${p}</button>`).join('');
+    const catOpts=categories.map(c=>`<option value="${c}"${c===cat?' selected':''}>${c}</option>`).join('');
     const div=document.createElement('div'); div.className='sound';
     div.innerHTML=`
       <div class="row" style="justify-content:space-between">
         <h3>${s.name}</h3>
-        <span class="cat">${cat}</span>
+        <select onchange="moveCategory('${s.name}',this.value)" title="Move to category" style="font-size:11px;padding:3px 6px;max-width:135px">${catOpts}</select>
       </div>
       <div class="muted" style="font-size:12px">${s.filename} • ${(s.size/1024).toFixed(1)}KB • ${new Date(s.createdAt).toLocaleDateString()}</div>
       <div class="muted" style="font-size:12px">👥 ${tags||'—'} <button class="secondary" onclick="togglePeopleEditor('${s.name}')" style="font-size:11px;padding:2px 8px">Edit</button></div>
@@ -569,6 +570,18 @@ async function renamePrompt(oldName){
   const r=await fetch(`/api/sounds/${encodeURIComponent(oldName)}/rename`, { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ newName: n.toLowerCase() }) });
   const j=await r.json(); if(!r.ok) return toast(j.error,true);
   toast(`Renamed → ${n}`); load();
+}
+async function moveCategory(name, category){
+  if(!category) return;
+  try{
+    const r=await fetch(`/api/sounds/${encodeURIComponent(name)}/category`, { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ category }) });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'move failed');
+    const s=sounds.find(x=>x.name===name);
+    if(s) s.category=j.category;
+    toast(`${name} → ${j.category}`);
+    load();
+  }catch(e){ toast(e.message,true); }
 }
 
 async function setVol(v){

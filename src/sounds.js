@@ -58,6 +58,17 @@ export async function setPeople(name, people) {
   return entry;
 }
 
+export async function setCategory(name, category) {
+  const key = name.toLowerCase();
+  const entry = sounds[key];
+  if (!entry) throw new Error("not_found");
+  const cat = String(category || "").trim() || "General";
+  if (cat.length > 40) throw new Error("invalid_category");
+  entry.category = cat;
+  await saveRegistry();
+  return entry;
+}
+
 export async function deleteSound(name) {
   const key = name.toLowerCase();
   const entry = sounds[key];

@@ -4,7 +4,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
-import { getSounds, addSound, deleteSound, renameSound, setPeople, SOUNDS_DIR } from "./sounds.js";
+import { getSounds, addSound, deleteSound, renameSound, setPeople, setCategory, SOUNDS_DIR } from "./sounds.js";
 import { client } from "./bot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -89,6 +89,13 @@ app.post("/api/sounds/:name/people", auth, async (req, res) => {
   try {
     const entry = await setPeople(req.params.name, parsePeopleField(req.body.people));
     res.json({ ok: true, name: req.params.name.toLowerCase(), people: entry.people });
+  } catch(e){ res.status(e.message==="not_found"?404:400).json({ error: e.message }); }
+});
+
+app.post("/api/sounds/:name/category", auth, async (req, res) => {
+  try {
+    const entry = await setCategory(req.params.name, req.body.category);
+    res.json({ ok: true, name: req.params.name.toLowerCase(), category: entry.category });
   } catch(e){ res.status(e.message==="not_found"?404:400).json({ error: e.message }); }
 });
 
