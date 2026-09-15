@@ -86,7 +86,6 @@ button,input,select{border-radius:4px !important}
 <header>
   <h1>🔊 Soundboard <span>Moulin</span></h1>
   <div class="row" style="gap:10px;align-items:center">
-    <div class="channel-select" id="textSelectWrap"></div>
     <div class="channel-select" id="voiceSelectWrap"></div>
     <div style="display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:6px 10px">
       <span style="font-size:14px">🔊</span>
@@ -221,7 +220,6 @@ function saveCfg(){
   // channel ids now via stylish selector (localStorage)
   localStorage.setItem('sb_category', currentCategory);
 }
-function getChannelId(){ return localStorage.getItem('sb_channel')||''; }
 function getVoiceId(){ return localStorage.getItem('sb_voice')||''; }
 function authHeaders(){
   const t = getToken();
@@ -233,9 +231,8 @@ function toast(msg, err){
 }
 
 function buildChannelSelectors(){
-  const textWrap=$('textSelectWrap'), voiceWrap=$('voiceSelectWrap');
-  if(!textWrap || !voiceWrap) return;
-  const curText = localStorage.getItem('sb_channel')||'';
+  const voiceWrap=$('voiceSelectWrap');
+  if(!voiceWrap) return;
   const curVoice = localStorage.getItem('sb_voice')||'';
   function makeSelect(wrap, type, cur, placeholder){
     const label = type==='voice' ? 'Voice' : 'Text';
@@ -286,7 +283,6 @@ function buildChannelSelectors(){
     const manual=document.createElement('div'); manual.style.padding='8px'; manual.innerHTML=`<input placeholder="Or paste ID" style="width:100%" value="${cur}" onkeydown="if(event.key==='Enter'){localStorage.setItem('${type==='voice'?'sb_voice':'sb_channel'}',this.value.trim()); buildChannelSelectors(); toast('Updated');}">`;
     dd.appendChild(manual);
   }
-  makeSelect(textWrap, 'text', curText, 'Select text channel');
   makeSelect(voiceWrap, 'voice', curVoice, 'Select voice channel');
   // close on outside click
   document.addEventListener('click', e=>{
@@ -374,7 +370,6 @@ function render(){
       <div class="muted" style="font-size:12px">${s.filename} • ${(s.size/1024).toFixed(1)}KB • ${new Date(s.createdAt).toLocaleDateString()}</div>
       <audio controls preload="none" src="/sounds/${encodeURIComponent(s.filename)}"></audio>
       <div class="row">
-        <button onclick="play('${s.name}')">▶ Send</button>
         <button class="voice" onclick="playVoice('${s.name}')">🔊 Voice</button>
         <button class="secondary" onclick="del('${s.name}')">Delete</button>
       </div>
@@ -405,16 +400,6 @@ async function upload(){
   finally{ $('uploadBtn').disabled=false; $('uploadBtn').textContent='Upload'; }
 }
 
-async function play(name){
-  const channelId=getChannelId();
-  if(!channelId) return toast('Select a Text channel first',true);
-  try{
-    const r=await fetch(`/api/play/${encodeURIComponent(name)}`, { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify({ channelId }) });
-    const j=await r.json();
-    if(!r.ok) throw new Error(j.error || 'play failed');
-    toast(`▶ ${name} sent`);
-  }catch(e){ toast(e.message,true); }
-}
 let lastVoicePlay = new Map();
 async function playVoice(name, isRetry=false){
   const channelId=getVoiceId();

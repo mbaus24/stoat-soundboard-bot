@@ -1,7 +1,5 @@
 import { Client } from "stoat.js";
-import fs from "node:fs/promises";
-import path from "node:path";
-import { getSounds, getEntry, addSound, deleteSound, renameSound, saveRegistry, SOUNDS_DIR } from "./sounds.js";
+import { getSounds, getEntry, addSound, deleteSound, renameSound } from "./sounds.js";
 
 const TOKEN = process.env.BOT_TOKEN;
 const PREFIX = process.env.PREFIX || "!sb";
@@ -31,7 +29,6 @@ function helpText() {
 \`${PREFIX} help\` — aide
 \`${PREFIX} list\` — liste
 \`${PREFIX} add <name>\` + fichier — ajoute
-\`${PREFIX} play <name>\` / \`${PREFIX} <name>\` — poste en texte
 \`${PREFIX} vjoin [voiceId]\` — rejoint le vocal (auto si t'es dedans)
 \`${PREFIX} vplay <name>\` — joue DANS le vocal
 \`${PREFIX} vleave\` — quitte le vocal
@@ -57,8 +54,7 @@ client.on("messageCreate", async (message) => {
   const lowerCmd = cmd.toLowerCase();
   const sounds = getSounds();
 
-  if (!["help","list","ls","add","upload","play","p","delete","del","rm","remove","rename","mv"].includes(lowerCmd)) {
-    if (sounds[lowerCmd]) return handlePlay(message.channel, lowerCmd);
+  if (!["help","list","ls","add","upload","delete","del","rm","remove","rename","mv","vjoin","vleave","vquit","vplay","vp","vsay","vstop","vpause"].includes(lowerCmd)) {
     await message.channel.sendMessage(`Inconnu \`${cmd}\`. \`${PREFIX} list\` / \`${PREFIX} help\``);
     return;
   }
@@ -133,14 +129,8 @@ client.on("messageCreate", async (message) => {
         if (!res.ok) throw new Error(`download ${res.status}`);
         const buf = Buffer.from(await res.arrayBuffer());
         await addSound(name, { filename: att.filename||`${name}.mp3`, data: buf, uploader: message.authorId, contentType: att.contentType });
-        await message.channel.sendMessage(`Ajouté \`${name}\` (${(buf.length/1024).toFixed(1)}KB). Joue: \`${PREFIX} play ${name}\``);
+        await message.channel.sendMessage(`Ajouté \`${name}\` (${(buf.length/1024).toFixed(1)}KB). Joue: \`${PREFIX} vplay ${name}\``);
       } catch(e){ await message.channel.sendMessage(`Erreur: ${e.message}`); }
-      break;
-    }
-    case "play": case "p": {
-      const name = rest[0]?.toLowerCase();
-      if (!name) { await message.channel.sendMessage(`Usage: \`${PREFIX} play <name>\``); return; }
-      await handlePlay(message.channel, name);
       break;
     }
     case "delete": case "del": case "rm": case "remove": {
@@ -159,26 +149,6 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-export async function handlePlay(channel, name) {
-  const entry = getEntry(name);
-  if (!entry) { await channel.sendMessage(`Son \`${name}\` introuvable.`); return; }
-  const filepath = path.join(SOUNDS_DIR, entry.filename);
-  try { await fs.access(filepath); } catch { await channel.sendMessage(`Fichier manquant: ${entry.filename}`); return; }
-  const data = await fs.readFile(filepath);
-  try {
-    // Correct stoat.js flow: upload via autumn then send attachment id
-    const file = new File([data], entry.filename, { type: entry.contentType || "audio/mpeg" });
-    const attachId = await client.uploadFile("attachments", file);
-    await channel.sendMessage({ content: `🔊 \`${name}\``, attachments: [attachId] });
-  } catch (e) {
-    console.error("[play] send failed", e?.message || e);
-    try {
-      await channel.sendMessage(`Erreur envoi \`${name}\`: ${e?.message || e}`);
-    } catch {}
-    throw e;
-  }
-}
-
 function voiceFallbackId() {
   return process.env.VOICE_CHANNEL_ID || process.env.DEFAULT_VOICE_CHANNEL_ID || null;
 }
@@ -191,35 +161,6 @@ async function getUserVoiceChannel(message) {
     // For now, return null and let caller use voiceFallbackId
   } catch {}
   return null;
-}
-
-// allow web server to trigger play by channelId
-export async function playInChannel(channelId, name) {
-  const entry = getEntry(name);
-  if (!entry) throw new Error("not_found");
-  // fetch channel via client
-  let channel;
-  try {
-    channel = client.channels.get(channelId);
-    if (!channel) {
-      // try fetch via API if not cached
-      const fetched = await client.api.get(`/channels/${channelId}`);
-      // hydrating not needed, we use raw send via API
-      // fallback: use client's internal fetch
-      channel = client.channels.get(channelId);
-      if (!channel && fetched) {
-        // create temporary channel-like object with sendMessage via API
-        const filepath = path.join(SOUNDS_DIR, entry.filename);
-        const data = await fs.readFile(filepath);
-        // upload then send — reuse handlePlay logic via API
-        // We attempt direct API message send with attachment upload helper if available
-        // As generic fallback, try client.channels.get after ready
-        throw new Error("channel_not_cached_try_restart_or_use_valid_id");
-      }
-    }
-  } catch(e){ /* */ }
-  if (!channel) throw new Error("channel_not_found");
-  await handlePlay(channel, name);
 }
 
 export async function startBot() {

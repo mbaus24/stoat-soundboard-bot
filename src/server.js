@@ -4,15 +4,16 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { getSounds, addSound, deleteSound, renameSound, SOUNDS_DIR } from "./sounds.js";
-import { playInChannel, client } from "./bot.js";
+import { client } from "./bot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = parseInt(process.env.WEB_PORT || "3000", 10);
 const MAX_MB = parseInt(process.env.MAX_FILE_SIZE_MB || "8", 10);
 const WEB_PASSWORD = process.env.WEB_PASSWORD || ""; // if set, require ?token= or header
-const DEFAULT_CHANNEL = process.env.DEFAULT_CHANNEL_ID || "";
-const DEFAULT_VOICE = process.env.VOICE_CHANNEL_ID || process.env.DEFAULT_VOICE_CHANNEL_ID || "";
+const DEFAULT_CHANNEL = (process.env.DEFAULT_CHANNEL_ID || "").split(",")[0].trim();
+const DEFAULT_VOICE = (process.env.VOICE_CHANNEL_ID || process.env.DEFAULT_VOICE_CHANNEL_ID || "").split(",")[0].trim();
+const DEFAULT_VOICE_ALL = (process.env.VOICE_CHANNEL_ID || process.env.DEFAULT_VOICE_CHANNEL_ID || "").split(",").map(s=>s.trim()).filter(Boolean);
 
 app.use(express.json());
 
@@ -79,27 +80,6 @@ app.post("/api/sounds/:name/rename", auth, async (req, res) => {
   if (!newName) return res.status(400).json({ error: "missing_newName" });
   try { await renameSound(req.params.name, newName); res.json({ ok: true, newName }); }
   catch(e){ res.status(400).json({ error: e.message }); }
-});
-
-// Play trigger — bot posts sound in Stoat channel
-app.post("/api/play/:name", auth, async (req, res) => {
-  const name = req.params.name.toLowerCase();
-  const channelId = (req.body.channelId || req.query.channelId || DEFAULT_CHANNEL || "").trim();
-  if (!channelId) return res.status(400).json({ error: "missing_channelId", detail: "Provide channelId or set DEFAULT_CHANNEL_ID env" });
-  if (!client.user) return res.status(503).json({ error: "bot_not_ready" });
-  try {
-    await playInChannel(channelId, name);
-    res.json({ ok: true, channelId, name });
-  } catch(e){
-    const code = e.message==="not_found"?404 : e.message==="channel_not_found"?404 : 500;
-    res.status(code).json({ error: e.message });
-  }
-});
-
-// also allow GET for simple trigger via browser
-app.get("/api/play/:name", auth, async (req,res)=>{
-  req.body = { channelId: req.query.channelId };
-  return app._router.handle({ ...req, method: "POST", url: `/api/play/${req.params.name}` }, res);
 });
 
 // Voice API
@@ -212,11 +192,12 @@ app.get("/api/channels", auth, async (req,res)=>{
           } catch {}
         }
         if (ch) {
-          const hasVoice = ch.voice !== undefined && ch.voice !== null;
+          const isDefaultVoice = DEFAULT_VOICE_ALL.includes(id);
+          const hasVoice = ch.voice != null || ch.channel_type === "VoiceChannel" || isDefaultVoice;
           chans.push({
             _id: ch._id || id,
             name: ch.name || ch.displayName || id,
-            channel_type: ch.channel_type || ch.type || (hasVoice ? "VoiceChannel" : "TextChannel"),
+            channel_type: hasVoice ? "VoiceChannel" : (ch.channel_type || ch.type || "TextChannel"),
             voice: hasVoice,
             server: server._id
           });
