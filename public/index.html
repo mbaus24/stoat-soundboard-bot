@@ -472,10 +472,12 @@ async function backupNow(){
   finally{ if(btn){ btn.disabled=false; btn.textContent='💾 Save now'; } }
 }
 async function upload(){
-  const name=$('soundName').value.trim().toLowerCase();
+  let name=$('soundName').value.trim().toLowerCase();
+  const file=$('file').files[0];
+  // autofill from filename when the name field is empty
+  if(!name && file){ name=fileToName(file.name)||''; $('soundName').value=name; }
   const cat=$('soundCategory').value.trim() || 'General';
   const people=$('soundPeople').value.split(',').map(s=>s.trim()).filter(Boolean);
-  const file=$('file').files[0];
   if(!name || !/^[a-z0-9_-]{1,30}$/.test(name)) return toast('Invalid name: a-z 0-9 _ - (1-30)',true);
   if(!file) return toast('Choose a file',true);
   const fd=new FormData(); fd.append('name',name); fd.append('category',cat); fd.append('people',JSON.stringify(people)); fd.append('sourcePath',file.name); fd.append('file',file);
@@ -592,6 +594,22 @@ async function setVol(v){
     toast(`Volume ${v}%`);
   }catch(e){ toast('Volume failed',true); }
 }
+// Normalize a filename into a valid sound name (same rules as bulk upload)
+function fileToName(filename){
+  const base=String(filename||'').replace(/\.[^.]+$/,'');
+  let name=base.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').replace(/_+/g,'_').slice(0,30).replace(/_+$/,'');
+  return name || 'sound';
+}
+// Suggest the name field from the chosen file, without clobbering
+// something the user already typed (tracks the last suggestion)
+let lastSuggested='';
+function suggestName(file){
+  if(!file) return;
+  const cur=$('soundName').value.trim().toLowerCase();
+  if(cur && cur!==lastSuggested) return;
+  lastSuggested=fileToName(file.name);
+  $('soundName').value=lastSuggested;
+}
 async function handleBulk(files){
   if(!files.length) return;
   let ok=0, fail=0, autoCount=0;
@@ -600,9 +618,8 @@ async function handleBulk(files){
   for(let i=0;i<files.length;i++){
     const f=files[i];
     if(!/\.(mp3|ogg|wav|webm|m4a|flac|opus)$/i.test(f.name)) continue;
-    const base=f.name.replace(/\.[^.]+$/,'');
-    let name=base.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').replace(/_+/g,'_').slice(0,30).replace(/_+$/,'');
-    if(!name) name='sound';
+    const base=fileToName(f.name);
+    let name=base;
     let n=name, c=1;
     while(sounds.find(s=>s.name===n)){ n=name.slice(0,28)+'_'+c; c++; }
     let cat = $('soundCategory').value.trim() || 'General';
@@ -636,8 +653,9 @@ drop.addEventListener('drop', e=>{
   if(files.length>1){ handleBulk(files); return; }
   const f=files[0]; if(!f) return;
   $('file').files=e.dataTransfer.files; $('fileInfo').textContent=`${f.name} • ${(f.size/1024).toFixed(1)}KB`;
+  suggestName(f);
 });
-$('file').addEventListener('change', ()=>{ const f=$('file').files[0]; if(f) $('fileInfo').textContent=`${f.name} • ${(f.size/1024).toFixed(1)}KB`; });
+$('file').addEventListener('change', ()=>{ const f=$('file').files[0]; if(f){ $('fileInfo').textContent=`${f.name} • ${(f.size/1024).toFixed(1)}KB`; suggestName(f); } });
 // load saved volume
 try{ const v=localStorage.getItem('sb_vol')||'100'; $('vol').value=v; $('volVal').textContent=v+'%'; }catch{}
 </script>
