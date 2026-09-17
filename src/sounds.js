@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_PEOPLE, detectPeople, mergePeople, readTags } from "./autotag.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const SOUNDS_DIR = path.join(__dirname, "..", "sounds");
@@ -35,7 +36,12 @@ export function normalizePeople(input) {
   return out;
 }
 
-export async function addSound(name, { filename, data, uploader, contentType, category, people }) {
+export function knownPeople() {
+  const fromRegistry = Object.values(sounds).flatMap((e) => e.people || []);
+  return [...new Set([...DEFAULT_PEOPLE, ...fromRegistry])];
+}
+
+export async function addSound(name, { filename, data, uploader, contentType, category, people, sourcePath, tags }) {
   const key = name.toLowerCase();
   if (sounds[key]) throw new Error("exists");
   if (!/^[a-z0-9_-]{1,30}$/.test(key)) throw new Error("invalid_name");
@@ -44,7 +50,15 @@ export async function addSound(name, { filename, data, uploader, contentType, ca
   const dest = path.join(SOUNDS_DIR, destName);
   await fs.writeFile(dest, data);
   const cat = (category || "General").trim() || "General";
-  sounds[key] = { filename: destName, uploader: uploader || "web", createdAt: new Date().toISOString(), size: data.length, contentType, category: cat, people: normalizePeople(people) };
+  // Auto-tag: match audio metadata + filename + path against known people.
+  // Best-effort — upload still succeeds if tag parsing fails.
+  let auto = [];
+  try {
+    const t = tags || (await readTags(data, contentType));
+    auto = detectPeople({ name: key, filename, sourcePath, tags: t }, knownPeople());
+  } catch { auto = []; }
+  const merged = mergePeople(normalizePeople(people), auto);
+  sounds[key] = { filename: destName, uploader: uploader || "web", createdAt: new Date().toISOString(), size: data.length, contentType, category: cat, people: merged };
   await saveRegistry();
   return sounds[key];
 }

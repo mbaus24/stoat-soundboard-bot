@@ -179,7 +179,7 @@ const PEOPLE = [
   ["ThD","#ff3864"],["Cdellies","#7c5cff"],["Tooki","#00c2a8"],["Titiver","#ffb000"],
   ["Arbow","#4da3ff"],["Ambroze","#b16dff"],["Nail","#ff7ab8"],["McRaclette","#ff8c42"],
   ["Doko","#7ddf64"],["Martin","#e5e5e5"],["Salemium","#00b3ff"],["Léa","#ff5d5d"],
-  ["Toileking","#c8a24a"],["Delta","#9aa0a6"]
+  ["Toileking","#c8a24a"],["Delta","#9aa0a6"],["LouvAndTech","#e14dff"],["Wazo","#c0ff4d"]
 ];
 const peopleColor = n => (PEOPLE.find(p=>p[0]===n)||[null,"#888"])[1];
 let currentCategory = localStorage.getItem('sb_category')||'all';
@@ -478,13 +478,14 @@ async function upload(){
   const file=$('file').files[0];
   if(!name || !/^[a-z0-9_-]{1,30}$/.test(name)) return toast('Invalid name: a-z 0-9 _ - (1-30)',true);
   if(!file) return toast('Choose a file',true);
-  const fd=new FormData(); fd.append('name',name); fd.append('category',cat); fd.append('people',JSON.stringify(people)); fd.append('file',file);
+  const fd=new FormData(); fd.append('name',name); fd.append('category',cat); fd.append('people',JSON.stringify(people)); fd.append('sourcePath',file.name); fd.append('file',file);
   $('uploadBtn').disabled=true; $('uploadBtn').textContent='Uploading...';
   try{
     const r=await fetch('/api/sounds', { method:'POST', headers: authHeaders(), body: fd });
     const j=await r.json();
     if(!r.ok) throw new Error(j.error || 'upload failed');
-    toast(`Added ${name} → ${cat}`);
+    const auto=(j.autoTagged||[]).join(', ');
+    toast(`Added ${name} → ${cat}`+(auto?` 👥 auto: ${auto}`:''));
     $('soundName').value=''; $('file').value=''; $('fileInfo').textContent='';
     load();
   }catch(e){ toast(e.message,true); }
@@ -593,7 +594,8 @@ async function setVol(v){
 }
 async function handleBulk(files){
   if(!files.length) return;
-  let ok=0, fail=0;
+  let ok=0, fail=0, autoCount=0;
+  const autoNames=new Set();
   $('bulkProgress').style.display='block';
   for(let i=0;i<files.length;i++){
     const f=files[i];
@@ -611,14 +613,15 @@ async function handleBulk(files){
     const people=$('soundPeople').value.split(',').map(s=>s.trim()).filter(Boolean);
     $('bulkInfo').textContent=`${i+1}/${files.length} → ${n} [${cat}]`;
     $('bulkBar').style.width=Math.round((i/files.length)*100)+'%';
-    const fd=new FormData(); fd.append('name',n); fd.append('category',cat); fd.append('people',JSON.stringify(people)); fd.append('file',f);
+    const fd=new FormData(); fd.append('name',n); fd.append('category',cat); fd.append('people',JSON.stringify(people)); fd.append('sourcePath',f.webkitRelativePath||f.name); fd.append('file',f);
     try{
       const r=await fetch('/api/sounds', { method:'POST', headers: authHeaders(), body: fd });
-      if(r.ok) ok++; else fail++;
+      if(r.ok){ ok++; try{ const j=await r.json(); (j.autoTagged||[]).forEach(p=>{ autoNames.add(p); autoCount++; }); }catch{} }
+      else fail++;
     }catch{ fail++; }
   }
   $('bulkBar').style.width='100%';
-  $('bulkInfo').textContent=`Done: ${ok} uploaded, ${fail} failed`;
+  $('bulkInfo').textContent=`Done: ${ok} uploaded, ${fail} failed`+(autoCount?`, 👥 auto-tagged ${autoCount} (${[...autoNames].join(', ')})`:'');
   setTimeout(()=>{ $('bulkProgress').style.display='none'; $('bulkBar').style.width='0%'; },2000);
   load();
 }

@@ -73,11 +73,14 @@ app.post("/api/sounds", auth, upload.single("file"), async (req, res) => {
   const name = (req.body.name || "").toLowerCase().trim();
   const category = (req.body.category || "General").trim();
   const people = parsePeopleField(req.body.people);
+  const sourcePath = String(req.body.sourcePath || req.file?.originalname || "");
   if (!name || !/^[a-z0-9_-]{1,30}$/.test(name)) return res.status(400).json({ error: "invalid_name", detail: "a-z,0-9,_,-, 1-30 chars" });
   if (!req.file) return res.status(400).json({ error: "missing_file" });
   try {
-    const entry = await addSound(name, { filename: req.file.originalname, data: req.file.buffer, uploader: "web", contentType: req.file.mimetype, category, people });
-    res.json({ ok: true, name, entry });
+    const entry = await addSound(name, { filename: req.file.originalname, data: req.file.buffer, uploader: "web", contentType: req.file.mimetype, category, people, sourcePath });
+    const explicit = new Set(people.map((p) => String(p).trim()).filter(Boolean));
+    const autoTagged = (entry.people || []).filter((p) => !explicit.has(p));
+    res.json({ ok: true, name, entry, autoTagged });
   } catch (e) {
     if (e.message === "exists") return res.status(409).json({ error: "exists" });
     if (e.message === "invalid_name") return res.status(400).json({ error: "invalid_name" });
