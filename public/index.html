@@ -162,11 +162,12 @@ button,input,select{border-radius:4px !important}
       <h2 style="margin:0">Sounds (<span id="count">0</span>)</h2>
       <button class="secondary" onclick="load()">↻ Refresh</button>
     </div>
-    <input id="search" class="search" placeholder="Search sounds..." oninput="render()"/>
+    <input id="search" class="search" placeholder="Search sounds..." oninput="currentPage=1;render()"/>
     <div id="filterBar" class="filter-bar"></div>
     <div id="peopleBar" class="people-bar"></div>
     <div id="grid" class="grid"></div>
     <div id="empty" class="muted" style="display:none;padding:20px;text-align:center">No sounds — upload above.</div>
+    <div id="pager" class="row" style="justify-content:center;margin-top:14px;gap:6px"></div>
   </div>
 </main>
 </div>
@@ -187,6 +188,9 @@ let selectedPeople = [];
 try { selectedPeople = JSON.parse(localStorage.getItem('sb_people')||'[]'); } catch { selectedPeople = []; }
 let sounds=[], categories=[];
 let serversCache = [];
+// Pagination — rendering ~700 cards at once lags the tab
+const PAGE_SIZE = 48;
+let currentPage = 1;
 
 function getToken(){
   const t=localStorage.getItem('sb_token')||'';
@@ -329,6 +333,7 @@ async function load(){
     if(!r.ok) throw new Error(await r.text());
     const j = await r.json();
     sounds = j.sounds;
+    currentPage = 1;
     categories = j.categories || [...new Set(sounds.map(s=>s.category||'General'))].sort();
     $('count').textContent = sounds.length;
     $('maxMb').textContent = '8';
@@ -372,7 +377,7 @@ function updateCategoryFilters(){
     btn.textContent = c==='all' ? `All (${sounds.length})` : `${c} (${sounds.filter(s=>(s.category||'General')===c).length})`;
     btn.className = c===currentCategory ? 'active' : 'secondary';
     if(c===currentCategory) btn.classList.add('active');
-    btn.onclick=()=>{ currentCategory=c; localStorage.setItem('sb_category',c); updateCategoryFilters(); render(); };
+    btn.onclick=()=>{ currentCategory=c; currentPage=1; localStorage.setItem('sb_category',c); updateCategoryFilters(); render(); };
     bar.appendChild(btn);
   });
   if(!cats.includes(currentCategory)) currentCategory='all';
@@ -390,6 +395,7 @@ function updatePeopleFilters(){
     b.innerHTML=`<span class="dot" style="background:${color}"></span>${name} (${count})`;
     b.onclick=()=>{
       selectedPeople=selectedPeople.includes(name)?selectedPeople.filter(p=>p!==name):[...selectedPeople,name];
+      currentPage=1;
       localStorage.setItem('sb_people',JSON.stringify(selectedPeople));
       updatePeopleFilters(); render();
     };
@@ -432,8 +438,12 @@ function togglePerson(name, person){
 function render(){
   const g=$('grid'); g.innerHTML='';
   const list=getFiltered();
-  if(!list.length){ $('empty').style.display='block'; return; } $('empty').style.display='none';
-  list.forEach(s=>{
+  if(!list.length){ $('empty').style.display='block'; renderPager(0); return; } $('empty').style.display='none';
+  const pages=Math.max(1, Math.ceil(list.length/PAGE_SIZE));
+  if(currentPage>pages) currentPage=pages;
+  const start=(currentPage-1)*PAGE_SIZE;
+  renderPager(pages);
+  list.slice(start, start+PAGE_SIZE).forEach(s=>{
     const cat=s.category||'General';
     const tags=(s.people||[]).map(p=>`<span class="person-dot" style="background:${peopleColor(p)}" title="${p}"></span>${p}`).join(' ');
     const picker=PEOPLE.map(([p,c])=>`<button class="person-chip${(s.people||[]).includes(p)?' active':''}" style="color:${c}" onclick="togglePerson('${s.name}','${p}')"><span class="dot" style="background:${c}"></span>${p}</button>`).join('');
@@ -458,6 +468,43 @@ function render(){
       </div>`;
     g.appendChild(div);
   });
+}
+
+function goPage(n, pages){
+  const p=Math.max(1, Math.min(pages||1, n));
+  if(p===currentPage && pages) return;
+  currentPage=p;
+  render();
+  $('grid').scrollIntoView({ block: 'start' });
+}
+
+function renderPager(pages){
+  const bar=$('pager'); if(!bar) return;
+  bar.innerHTML='';
+  if(!pages || pages<2) return;
+  const mk=(label, page, opts={})=>{
+    const b=document.createElement('button');
+    b.textContent=label;
+    b.className=opts.active?'':'secondary';
+    if(opts.active) b.style.background='var(--accent2)';
+    if(opts.disabled) b.disabled=true;
+    b.onclick=()=>goPage(page, pages);
+    bar.appendChild(b);
+  };
+  mk('«', 1, { disabled: currentPage===1 });
+  mk('‹', currentPage-1, { disabled: currentPage===1 });
+  // window of page numbers around current
+  let lo=Math.max(1, Math.min(currentPage-3, pages-6));
+  let hi=Math.min(pages, lo+6);
+  lo=Math.max(1, hi-6);
+  for(let p=lo; p<=hi; p++) mk(String(p), p, { active: p===currentPage });
+  mk('›', currentPage+1, { disabled: currentPage===pages });
+  mk('»', pages, { disabled: currentPage===pages });
+  const info=document.createElement('span');
+  info.className='muted';
+  info.style.cssText='font-size:12px;align-self:center';
+  info.textContent=`${currentPage}/${pages}`;
+  bar.appendChild(info);
 }
 
 async function backupNow(){
