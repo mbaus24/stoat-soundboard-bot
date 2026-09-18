@@ -128,8 +128,9 @@ If `AlreadyConnected` appears after a restart, the previous LiveKit session is s
 Sounds + `sounds.json` are saved daily at 02:00 via a host cron job plus on demand from the UI (`Save now` → `POST /api/backup`):
 
 ```bash
-# TrueNAS host — install once (log must live somewhere the user can write)
-(crontab -l 2>/dev/null; echo "0 2 * * * /home/truenas_admin/stoat-soundboard-bot/scripts/backup.sh >> /home/truenas_admin/soundboard-backup.log 2>&1") | crontab -
+# TrueNAS host — install once.
+# NOTE: /home is mounted noexec, so invoke via sh; log must live somewhere the user can write.
+(crontab -l 2>/dev/null; echo "0 2 * * * sh /home/truenas_admin/stoat-soundboard-bot/scripts/backup.sh >> /home/truenas_admin/soundboard-backup.log 2>&1") | crontab -
 ```
 
 Tarballs land in `./backups/sounds-YYYYMMDD-HHMMSS.tar.gz` (last 14 kept). Restore: stop the container, `tar -xzf backups/<file>`, restart.
