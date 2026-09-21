@@ -4,6 +4,10 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Soundboard — Moulin</title>
+<!-- Aero wallpaper: "Frutiger Aero wallpaper I whipped up in a few hours" by u/GunnohMM, resized to 1920w — https://www.reddit.com/r/FrutigerAero/comments/1blbrl9/ -->
+<link rel="icon" type="image/x-icon" href="/favicon.ico"/>
+<link rel="icon" type="image/png" sizes="256x256" href="/favicon-256.png"/>
+<link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
 <style>
 :root{--bg:#0f0f10;--card:#1c1c1f;--accent:#ff3864;--accent2:#7c5cff;--muted:#9a9aa0;--border:#2a2a2e;color-scheme:dark}
 *{box-sizing:border-box;font-family:Inter,system-ui,Segoe UI,sans-serif}
@@ -97,15 +101,16 @@ body[data-theme="aero"]::after{
     radial-gradient(circle at 94% 30%, rgba(255,255,255,.5) 0 6px, transparent 7px);
 }
 body[data-theme="aero"] #app{position:relative;z-index:1}
-body[data-theme="aero"] header{background:linear-gradient(180deg, rgba(255,255,255,.65) 0%, rgba(255,255,255,.25) 100%);border-bottom:1px solid rgba(255,255,255,.6)}
+body[data-theme="aero"] header{background:linear-gradient(180deg, rgba(255,255,255,.7) 0%, rgba(255,255,255,.3) 100%);border-bottom:1px solid rgba(255,255,255,.65);backdrop-filter:blur(14px) saturate(1.5);-webkit-backdrop-filter:blur(14px) saturate(1.5)}
 body[data-theme="aero"] h1{color:#07354f}
 body[data-theme="aero"] h1 span{color:#0077b3}
 body[data-theme="aero"] .card,body[data-theme="aero"] .login-card,body[data-theme="aero"] .sound{
-  background:linear-gradient(180deg, rgba(255,255,255,.8) 0%, rgba(255,255,255,.45) 100%);
-  border:1px solid rgba(255,255,255,.75);
-  box-shadow:0 8px 32px rgba(0,110,190,.18), inset 0 1px 0 rgba(255,255,255,.9);
+  background:linear-gradient(180deg, rgba(255,255,255,.85) 0%, rgba(255,255,255,.5) 100%);
+  border:1px solid rgba(255,255,255,.85);
+  box-shadow:0 10px 36px rgba(0,110,190,.22), inset 0 2px 0 rgba(255,255,255,.95), inset 0 -1px 0 rgba(0,120,200,.12);
   color:#0b2a3a;
 }
+body[data-theme="aero"] .card,body[data-theme="aero"] .login-card{backdrop-filter:blur(14px) saturate(1.5);-webkit-backdrop-filter:blur(14px) saturate(1.5)}
 body[data-theme="aero"] .sound h3{color:#07354f}
 body[data-theme="aero"] input,body[data-theme="aero"] select{
   background:rgba(255,255,255,.75);color:#0b2a3a;border:1px solid rgba(0,120,200,.3);
@@ -136,20 +141,20 @@ body[data-theme="aero"] button.voice{
 }
 body[data-theme="aero"] .badge{background:rgba(255,255,255,.65);color:#0b2a3a;border:1px solid rgba(0,120,200,.25)}
 body[data-theme="aero"] #status{color:#fff !important}
-/* person chips: light crystal, dark text (dots keep their color) */
-body[data-theme="aero"] .person-chip{background:rgba(255,255,255,.6);color:#0b2a3a !important;border:1px solid rgba(0,120,200,.3);opacity:.9;box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
-body[data-theme="aero"] .person-chip.active{opacity:1;background:rgba(255,255,255,.9);border-color:rgba(0,120,200,.55)}
+/* person chips: bright crystal, high-contrast dark text (dots keep their color) */
+body[data-theme="aero"] .person-chip{background:rgba(255,255,255,.8);color:#06202f !important;border:1px solid rgba(0,100,170,.5);opacity:1;font-weight:600;box-shadow:inset 0 1px 0 rgba(255,255,255,.95), 0 1px 4px rgba(0,110,190,.15)}
+body[data-theme="aero"] .person-chip.active{opacity:1;background:rgba(255,255,255,.95);border-color:rgba(0,100,170,.7);box-shadow:inset 0 1px 0 rgba(255,255,255,1), 0 0 0 1px rgba(0,150,230,.35), 0 2px 8px rgba(0,110,190,.25)}
 body[data-theme="aero"] .sound .cat{box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
 body[data-theme="aero"] .drop{background:rgba(255,255,255,.4);border-color:rgba(0,120,200,.4)}
 body[data-theme="aero"] .drop.drag{background:rgba(255,255,255,.7);border-color:#0099e6;color:#0077b3}
 body[data-theme="aero"] .channel-select button.trigger{background:rgba(255,255,255,.7);color:#0b2a3a;border:1px solid rgba(0,120,200,.3)}
-body[data-theme="aero"] .channel-select .dropdown{background:rgba(255,255,255,.92);border:1px solid rgba(0,120,200,.3)}
+body[data-theme="aero"] .channel-select .dropdown{background:rgba(255,255,255,.92);border:1px solid rgba(0,120,200,.3);backdrop-filter:blur(14px) saturate(1.5);-webkit-backdrop-filter:blur(14px) saturate(1.5)}
 body[data-theme="aero"] .channel-select .opt{border-bottom:1px solid rgba(0,120,200,.12)}
 body[data-theme="aero"] .channel-select .opt:hover{background:rgba(0,150,230,.12)}
 body[data-theme="aero"] .channel-select .opt.active{background:rgba(0,150,230,.2)}
 body[data-theme="aero"] .channel-select .server{background:rgba(0,120,200,.08)}
 body[data-theme="aero"] .filter-bar button.active{background:var(--accent2);border-color:var(--accent2);color:#fff}
-body[data-theme="aero"] #toast{background:rgba(255,255,255,.92);color:#0b2a3a;border:1px solid rgba(0,120,200,.35);box-shadow:0 8px 24px rgba(0,110,190,.28)}
+body[data-theme="aero"] #toast{background:rgba(255,255,255,.95);color:#06202f;font-weight:600;border:1px solid rgba(0,100,170,.4);box-shadow:0 8px 24px rgba(0,110,190,.3);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 body[data-theme="aero"] code{background:rgba(0,120,200,.12);padding:1px 5px;border-radius:4px}
 body[data-theme="aero"] #bulkProgress{background:rgba(255,255,255,.5)}
 </style>
