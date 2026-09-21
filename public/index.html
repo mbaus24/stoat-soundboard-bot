@@ -239,7 +239,17 @@ body[data-theme="aero"] #bulkProgress{background:rgba(255,255,255,.5)}
   <div class="card">
     <div class="row" style="justify-content:space-between;margin-bottom:12px">
       <h2 style="margin:0">Sounds (<span id="count">0</span>)</h2>
-      <button class="secondary" onclick="load()">↻ Refresh</button>
+      <div class="row" style="gap:8px">
+        <select id="sortSel" onchange="setSort(this.value)" title="Sort sounds">
+          <option value="az">A–Z</option>
+          <option value="za">Z–A</option>
+          <option value="new">Last uploaded</option>
+          <option value="old">Oldest first</option>
+          <option value="big">Largest</option>
+          <option value="small">Smallest</option>
+        </select>
+        <button class="secondary" onclick="load()">↻ Refresh</button>
+      </div>
     </div>
     <input id="search" class="search" placeholder="Search sounds..." oninput="currentPage=1;render()"/>
     <div id="filterBar" class="filter-bar"></div>
@@ -496,13 +506,29 @@ function updatePeopleFilters(){
   });
 }
 
+let sortMode = localStorage.getItem('sb_sort')||'az';
+function setSort(v){
+  sortMode=v;
+  localStorage.setItem('sb_sort', v);
+  currentPage=1;
+  render();
+}
+try { $('sortSel').value = sortMode; } catch {}
+
 function getFiltered(){
   let list=sounds;
   if(currentCategory!=='all') list=list.filter(s=>(s.category||'General')===currentCategory);
   if(selectedPeople.length) list=list.filter(s=>(s.people||[]).some(p=>selectedPeople.includes(p)));
   const q=$('search').value.trim().toLowerCase();
   if(q) list=list.filter(s=>s.name.toLowerCase().includes(q) || (s.category||'').toLowerCase().includes(q) || (s.people||[]).join(' ').toLowerCase().includes(q));
-  return list;
+  const out=[...list];
+  if(sortMode==='za') out.sort((a,b)=>b.name.localeCompare(a.name));
+  else if(sortMode==='new') out.sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+  else if(sortMode==='old') out.sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+  else if(sortMode==='big') out.sort((a,b)=>(b.size||0)-(a.size||0));
+  else if(sortMode==='small') out.sort((a,b)=>(a.size||0)-(b.size||0));
+  else out.sort((a,b)=>a.name.localeCompare(b.name));
+  return out;
 }
 
 async function savePeople(name, people){
