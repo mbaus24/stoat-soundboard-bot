@@ -253,6 +253,7 @@ body[data-theme="aero"] #bulkProgress{background:rgba(255,255,255,.5)}
           <option value="big">Largest</option>
           <option value="small">Smallest</option>
         </select>
+        <button class="secondary" onclick="playRandom();this.blur()" title="Play a random sound from the current filter" type="button">🎲</button>
         <button class="secondary" onclick="load()">↻ Refresh</button>
       </div>
     </div>
@@ -666,6 +667,12 @@ async function upload(){
 }
 
 let lastVoicePlay = new Map();
+function playRandom(){
+  const list=getFiltered();
+  if(!list.length) return toast('No sounds to pick from',true);
+  const s=list[Math.floor(Math.random()*list.length)];
+  playVoice(s.name);
+}
 async function playVoice(name, isRetry=false){
   const channelId=getVoiceId();
   if(!channelId) return toast('Select a Voice channel first',true);
