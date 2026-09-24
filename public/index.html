@@ -668,9 +668,8 @@ async function upload(){
 
 let lastVoicePlay = new Map();
 function playRandom(){
-  const list=getFiltered();
-  if(!list.length) return toast('No sounds to pick from',true);
-  const s=list[Math.floor(Math.random()*list.length)];
+  if(!sounds.length) return toast('No sounds to pick from',true);
+  const s=sounds[Math.floor(Math.random()*sounds.length)];
   playVoice(s.name);
 }
 async function playVoice(name, isRetry=false){
