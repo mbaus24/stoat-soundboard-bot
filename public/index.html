@@ -687,7 +687,7 @@ async function playVoice(name, isRetry=false){
   lastVoicePlay.set(key, now);
   try{
     if(!isRetry) toast(`🔊 ${name} → voice...`);
-    const r=await fetch(`/api/voice/play/${encodeURIComponent(name)}`, { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify({ channelId }) });
+    const r=await fetch(`/api/voice/play/${encodeURIComponent(name)}`, { method:'POST', headers: { 'Content-Type':'application/json', ...authHeaders() }, body: JSON.stringify({ channelId, fx: readFxForm() }) });
     const j=await r.json();
     if(!r.ok) throw new Error(j.error || 'voice play failed');
     toast(`🔊 ${name} in voice`);
@@ -780,6 +780,10 @@ const FX_PRESETS = {
   cave: { pitch: 0, tempo: 100, reverb: 70, echo: 40, dist: 0 },
   disto: { pitch: 0, tempo: 100, reverb: 15, echo: 0, dist: 80 },
 };
+const FX_KEY = 'sb_fx';
+const FX_DEFAULTS_UI = { pitch: 0, tempo: 100, reverb: 0, echo: 0, dist: 0 };
+// FX lives in this browser only (localStorage) and rides along with each
+// play request — changing your sliders never affects anyone else.
 function readFxForm(){
   return {
     pitch: parseInt($('fxPitch').value)||0,
@@ -799,13 +803,8 @@ function paintFx(fx){
 async function pushFx(silent){
   const fx=readFxForm();
   paintFx(fx);
-  try{
-    const r=await fetch('/api/voice/fx', { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify(fx) });
-    const j=await r.json();
-    if(!r.ok) throw new Error(j.error||'fx failed');
-    paintFx(j.fx);
-    if(!silent) toast('🎛 Effects updated — next plays');
-  }catch(e){ toast(e.message,true); }
+  try{ localStorage.setItem(FX_KEY, JSON.stringify(fx)); }catch{}
+  if(!silent) toast('🎛 Effects saved in this browser');
 }
 async function setFxPreset(name){
   const p=FX_PRESETS[name];
@@ -813,12 +812,10 @@ async function setFxPreset(name){
   paintFx(p);
   await pushFx();
 }
-async function loadFx(){
-  try{
-    const r=await fetch('/api/voice/fx', { headers: authHeaders() });
-    if(!r.ok) return;
-    paintFx((await r.json()).fx);
-  }catch{}
+function loadFx(){
+  let fx={...FX_DEFAULTS_UI};
+  try{ fx={...fx, ...JSON.parse(localStorage.getItem(FX_KEY)||'{}')}; }catch{}
+  paintFx(fx);
 }
 // Normalize a filename into a valid sound name (same rules as bulk upload)
 function fileToName(filename){

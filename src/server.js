@@ -171,7 +171,8 @@ app.post("/api/voice/play/:name", auth, async (req,res)=>{
   if (!client.user) return res.status(503).json({ error: "bot_not_ready" });
   try {
     const { playInVoice } = await import("./voice.js");
-    await playInVoice(channelId, name);
+    // fx rides along with the play request: each browser uses its own params
+    await playInVoice(channelId, name, req.body?.fx);
     res.json({ ok:true, channelId, name, mode:"voice" });
   } catch(e){
     const code = e.message==="not_found"?404:500;
@@ -208,18 +209,6 @@ app.get("/api/voice/volume", auth, async (req,res)=>{
   try{
     const { getVolume } = await import("./voice.js");
     res.json({ volume: getVolume() });
-  }catch(e){ res.status(500).json({ error: e.message }); }
-});
-app.get("/api/voice/fx", auth, async (req,res)=>{
-  try{
-    const { getFx } = await import("./voice.js");
-    res.json({ fx: getFx() });
-  }catch(e){ res.status(500).json({ error: e.message }); }
-});
-app.post("/api/voice/fx", auth, async (req,res)=>{
-  try{
-    const { setFx } = await import("./voice.js");
-    res.json({ ok:true, ...(await setFx(req.body || {})) });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
 

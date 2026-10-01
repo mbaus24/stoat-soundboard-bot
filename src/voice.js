@@ -183,7 +183,7 @@ async function lockedJoin(channelId, _retry=0) {
   joinLocks.set(channelId, p);
   try { return await p; } finally { joinLocks.delete(channelId); }
 }
-export async function playInVoice(channelId, soundName) {
+export async function playInVoice(channelId, soundName, fx) {
   const entry = getEntry(soundName);
   if (!entry) throw new Error("not_found");
   const filepath = path.join(SOUNDS_DIR, entry.filename);
@@ -217,7 +217,7 @@ export async function playInVoice(channelId, soundName) {
   }
   playLock.add(channelId);
   try {
-    const chain = buildFilterChain(getFx());
+    const chain = buildFilterChain(sanitizeFx(fx));
     // FX output is headerless s16le: tell revoice's ffmpeg its format
     // explicitly, otherwise it misdetects the stream and plays silence.
     let stream = fs.createReadStream(filepath);
@@ -295,37 +295,23 @@ export async function setVolume(volume, channelId){
 }
 export function getVolume(){ return globalThis._voiceVol ?? 1; }
 
-// ---- Voice effects (applied at play time via ffmpeg, next plays) ----
+// ---- Voice effects (per-play: the caller passes fx, nothing is shared) ----
 const FX_DEFAULTS = { pitch: 0, tempo: 100, reverb: 0, echo: 0, dist: 0 };
 
-export function getFx() {
-  const s = globalThis._voiceFx || {};
-  return {
-    pitch: s.pitch ?? FX_DEFAULTS.pitch,
-    tempo: s.tempo ?? FX_DEFAULTS.tempo,
-    reverb: s.reverb ?? FX_DEFAULTS.reverb,
-    echo: s.echo ?? FX_DEFAULTS.echo,
-    dist: s.dist ?? FX_DEFAULTS.dist,
-  };
-}
-
-export async function setFx(patch) {
-  const cur = getFx();
+// Pure sanitize (clamp) — tolerates partial/foreign input.
+export function sanitizeFx(patch) {
   const num = (v, lo, hi, fb) => {
     const n = Number(v);
     if (!Number.isFinite(n)) return fb;
     return Math.max(lo, Math.min(hi, Math.round(n)));
   };
-  const next = {
-    pitch: num(patch?.pitch, -12, 12, cur.pitch),
-    tempo: num(patch?.tempo, 50, 200, cur.tempo),
-    reverb: num(patch?.reverb, 0, 100, cur.reverb),
-    echo: num(patch?.echo, 0, 100, cur.echo),
-    dist: num(patch?.dist, 0, 100, cur.dist),
+  return {
+    pitch: num(patch?.pitch, -12, 12, FX_DEFAULTS.pitch),
+    tempo: num(patch?.tempo, 50, 200, FX_DEFAULTS.tempo),
+    reverb: num(patch?.reverb, 0, 100, FX_DEFAULTS.reverb),
+    echo: num(patch?.echo, 0, 100, FX_DEFAULTS.echo),
+    dist: num(patch?.dist, 0, 100, FX_DEFAULTS.dist),
   };
-  globalThis._voiceFx = next;
-  console.info(`[voice] fx set ${JSON.stringify(next)}`);
-  return { fx: { ...next } };
 }
 
 // Pure: fx state -> ffmpeg -filter:a chain, or null when neutral.
@@ -341,7 +327,11 @@ export function buildFilterChain(fx) {
     parts.push(`asetrate=48000*${factor.toFixed(6)},aresample=48000`);
   }
   if (f.tempo !== 100) parts.push(`atempo=${(f.tempo / 100).toFixed(3)}`);
-  if (f.dist !== 0) parts.push(`acrusher=level_in=1:level_out=1:bits=${8 - Math.round((f.dist * 5) / 100)}:mode=log`);
+  if (f.dist !== 0) {
+    // drive into tanh soft-clipping; nonlinear gain so the slider feels natural
+    const gain = Math.pow(10, (f.dist / 100) * 1.5); // 1 → ~31.6x
+    parts.push(`volume=${gain.toFixed(3)},asoftclip=type=tanh`);
+  }
   if (f.reverb !== 0) {
     const d1 = Math.round(25 + f.reverb * 0.35);
     const d2 = Math.round(d1 * 1.8);
