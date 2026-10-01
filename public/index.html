@@ -218,27 +218,6 @@ body[data-theme="aero"] #bulkProgress{background:rgba(255,255,255,.5)}
       <div id="bulkProgress" style="display:none;margin-top:8px;background:#222;border-radius:8px;overflow:hidden;height:10px"><div id="bulkBar" style="height:100%;background:var(--accent2);width:0%"></div></div>
       <div class="muted" style="margin-top:10px">Also via Stoat: <code>!sb add &lt;name&gt;</code> + attachment</div>
     </div>
-
-    <div class="card" style="border-color:var(--accent2)">
-      <h2>🔊 Voice — LiveKit</h2>
-      <div class="muted" style="margin-bottom:10px">Bot joins voice and plays sounds live.</div>
-      <div class="row">
-        <button class="voice" onclick="voiceJoin()">Join Voice</button>
-        <button class="secondary" onclick="voiceLeave()">Leave</button>
-        <button class="secondary" onclick="voiceStop()">⏹ Stop</button>
-        <span id="voiceStatus" class="badge">voice: —</span>
-      </div>
-      <div class="muted" style="margin-top:10px">Stoat: <code>!sb vjoin</code> <code>!sb vplay &lt;name&gt;</code></div>
-    </div>
-
-    <div class="card">
-      <h2>Backups</h2>
-      <div class="muted" style="margin-bottom:10px">Daily save at 02:00 (NAS cron) + manual save.</div>
-      <div class="row">
-        <button class="secondary" id="backupBtn" onclick="backupNow()">💾 Save now</button>
-        <span id="backupInfo" class="muted"></span>
-      </div>
-    </div>
   </div>
 
   <div class="card">
@@ -465,8 +444,11 @@ async function load(){
     if(j.defaultVoice && !localStorage.getItem('sb_voice')) localStorage.setItem('sb_voice', j.defaultVoice);
     try {
       const v = await fetch('/api/voice/status', { headers: authHeaders() }).then(r=>r.json());
-      if (v.connections && v.connections.length) $('voiceStatus').textContent = `voice: ${v.connections.length} connected`;
-      else $('voiceStatus').textContent = v.defaultVoice ? `voice: ready (${v.defaultVoice.slice(0,6)}…)` : 'voice: —';
+      const vs = $('voiceStatus');
+      if (vs) {
+        if (v.connections && v.connections.length) vs.textContent = `voice: ${v.connections.length} connected`;
+        else vs.textContent = v.defaultVoice ? `voice: ready (${v.defaultVoice.slice(0,6)}…)` : 'voice: —';
+      }
       if (v.defaultVoice && !localStorage.getItem('sb_voice')) localStorage.setItem('sb_voice', v.defaultVoice);
     } catch {}
   }catch(e){ $('status').textContent='Load error'; toast(e.message,true); if(e.message.includes('401')) logout(); }
