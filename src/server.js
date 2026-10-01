@@ -210,6 +210,18 @@ app.get("/api/voice/volume", auth, async (req,res)=>{
     res.json({ volume: getVolume() });
   }catch(e){ res.status(500).json({ error: e.message }); }
 });
+app.get("/api/voice/fx", auth, async (req,res)=>{
+  try{
+    const { getFx } = await import("./voice.js");
+    res.json({ fx: getFx() });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
+app.post("/api/voice/fx", auth, async (req,res)=>{
+  try{
+    const { setFx } = await import("./voice.js");
+    res.json({ ok:true, ...(await setFx(req.body || {})) });
+  }catch(e){ res.status(500).json({ error: e.message }); }
+});
 
 // Channels - fetch via API to get real names
 app.get("/api/channels", auth, async (req,res)=>{

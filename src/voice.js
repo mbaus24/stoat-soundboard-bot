@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { SOUNDS_DIR, getEntry } from "./sounds.js";
 
 const require = createRequire(import.meta.url);
@@ -12,6 +13,17 @@ try {
 } catch (e) {
   console.warn("[voice] revoice.js not installed — voice disabled", e.message);
 }
+
+// ffmpeg binary for the effects chain (transcode file -> s16le stream).
+// Same static build family revoice uses; best-effort — fx disabled if missing.
+let ffmpegPath = null;
+try {
+  ffmpegPath = require("ffmpeg-static");
+  if (ffmpegPath && !fs.existsSync(ffmpegPath)) ffmpegPath = null;
+} catch {
+  ffmpegPath = null;
+}
+if (!ffmpegPath) console.warn("[voice] ffmpeg-static not found — voice effects disabled");
 
 const BASE_URL = process.env.STOAT_BASE_URL || "https://stoat.chat/api";
 const TOKEN = process.env.BOT_TOKEN;
@@ -205,8 +217,10 @@ export async function playInVoice(channelId, soundName) {
   }
   playLock.add(channelId);
   try {
-    player.playStream(fs.createReadStream(filepath));
-    console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}`);
+    const chain = buildFilterChain(getFx());
+    const stream = fxStream(filepath, chain) || fs.createReadStream(filepath);
+    player.playStream(stream);
+    console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}${chain ? ` fx=${chain}` : ""}`);
     return { channelId, soundName, filename: entry.filename };
   } finally { setTimeout(() => playLock.delete(channelId), 500); }
 }
@@ -270,3 +284,79 @@ export async function setVolume(volume, channelId){
   return { volume: vol };
 }
 export function getVolume(){ return globalThis._voiceVol ?? 1; }
+
+// ---- Voice effects (applied at play time via ffmpeg, next plays) ----
+const FX_DEFAULTS = { pitch: 0, tempo: 100, reverb: 0, echo: 0, bass: 0 };
+
+export function getFx() {
+  return { ...FX_DEFAULTS, ...(globalThis._voiceFx || {}) };
+}
+
+export async function setFx(patch) {
+  const cur = getFx();
+  const num = (v, lo, hi, fb) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return fb;
+    return Math.max(lo, Math.min(hi, Math.round(n)));
+  };
+  const next = {
+    pitch: num(patch?.pitch, -12, 12, cur.pitch),
+    tempo: num(patch?.tempo, 50, 200, cur.tempo),
+    reverb: num(patch?.reverb, 0, 100, cur.reverb),
+    echo: num(patch?.echo, 0, 100, cur.echo),
+    bass: num(patch?.bass, -20, 20, cur.bass),
+  };
+  globalThis._voiceFx = next;
+  console.info(`[voice] fx set ${JSON.stringify(next)}`);
+  return { fx: { ...next } };
+}
+
+// Pure: fx state -> ffmpeg -filter:a chain, or null when neutral.
+export function buildFilterChain(fx) {
+  const f = { ...FX_DEFAULTS, ...(fx || {}) };
+  const parts = [];
+  // normalize input rate first so pitch factor is rate-independent
+  const shaped = f.pitch !== 0 || f.tempo !== 100 || f.reverb !== 0 || f.echo !== 0 || f.bass !== 0;
+  if (!shaped) return null;
+  parts.push("aresample=48000");
+  if (f.pitch !== 0) {
+    const factor = Math.pow(2, f.pitch / 12);
+    parts.push(`asetrate=48000*${factor.toFixed(6)},aresample=48000`);
+  }
+  if (f.tempo !== 100) parts.push(`atempo=${(f.tempo / 100).toFixed(3)}`);
+  if (f.reverb !== 0) {
+    const d1 = Math.round(25 + f.reverb * 0.35);
+    const d2 = Math.round(d1 * 1.8);
+    parts.push(`aecho=0.8:${(0.45 + f.reverb / 400).toFixed(3)}:${d1}|${d2}:0.35|0.25`);
+  }
+  if (f.echo !== 0) {
+    const d = Math.round(180 + f.echo * 3);
+    parts.push(`aecho=0.8:${(0.4 + f.echo / 500).toFixed(3)}:${d}:0.45`);
+  }
+  if (f.bass !== 0) parts.push(`bass=g=${f.bass}`);
+  return parts.join(",");
+}
+
+// Transcode filepath through the fx chain, returning a readable s16le
+// stream suitable for player.playStream(). Falls back to null on error
+// so the caller can play the raw file instead.
+export function fxStream(filepath, chain) {
+  if (!ffmpegPath || !chain) return null;
+  try {
+    const child = spawn(ffmpegPath, [
+      "-v", "error", "-i", filepath,
+      "-filter:a", chain,
+      "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "pipe:1",
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    child.on("error", (e) => console.warn("[voice] fx ffmpeg spawn failed, falling back to raw:", e.message));
+    let stderr = "";
+    child.stderr.on("data", (c) => { stderr += String(c).slice(0, 300); });
+    child.on("close", (code) => {
+      if (code !== 0 && code !== null) console.warn(`[voice] fx ffmpeg exited ${code}: ${stderr.slice(0, 200)}`);
+    });
+    return child.stdout;
+  } catch (e) {
+    console.warn("[voice] fx stream failed, falling back to raw:", e.message);
+    return null;
+  }
+}

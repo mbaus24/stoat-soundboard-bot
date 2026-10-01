@@ -218,6 +218,24 @@ body[data-theme="aero"] #bulkProgress{background:rgba(255,255,255,.5)}
       <div id="bulkProgress" style="display:none;margin-top:8px;background:#222;border-radius:8px;overflow:hidden;height:10px"><div id="bulkBar" style="height:100%;background:var(--accent2);width:0%"></div></div>
       <div class="muted" style="margin-top:10px">Also via Stoat: <code>!sb add &lt;name&gt;</code> + attachment</div>
     </div>
+
+    <div class="card">
+      <h2>🎛 Effects</h2>
+      <div class="muted" style="margin-bottom:10px">Voice filters, applied to the next plays.</div>
+      <div class="row" style="margin-bottom:8px;gap:6px">
+        <button class="secondary" onclick="setFxPreset('normal')" style="font-size:12px" type="button">Normal</button>
+        <button class="secondary" onclick="setFxPreset('chipmunk')" style="font-size:12px" type="button">🐿 Chipmunk</button>
+        <button class="secondary" onclick="setFxPreset('demon')" style="font-size:12px" type="button">😈 Demon</button>
+        <button class="secondary" onclick="setFxPreset('cave')" style="font-size:12px" type="button">🦇 Cave</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label class="muted" style="font-size:12px">Pitch <span id="fxPitchVal">0 st</span><input type="range" id="fxPitch" min="-12" max="12" step="1" value="0" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
+        <label class="muted" style="font-size:12px">Speed <span id="fxTempoVal">100%</span><input type="range" id="fxTempo" min="50" max="200" step="5" value="100" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
+        <label class="muted" style="font-size:12px">Reverb <span id="fxReverbVal">0%</span><input type="range" id="fxReverb" min="0" max="100" step="1" value="0" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
+        <label class="muted" style="font-size:12px">Echo <span id="fxEchoVal">0%</span><input type="range" id="fxEcho" min="0" max="100" step="1" value="0" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
+        <label class="muted" style="font-size:12px">Bass <span id="fxBassVal">0 dB</span><input type="range" id="fxBass" min="-20" max="20" step="1" value="0" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
+      </div>
+    </div>
   </div>
 
   <div class="card">
@@ -451,6 +469,7 @@ async function load(){
       }
       if (v.defaultVoice && !localStorage.getItem('sb_voice')) localStorage.setItem('sb_voice', v.defaultVoice);
     } catch {}
+    loadFx();
   }catch(e){ $('status').textContent='Load error'; toast(e.message,true); if(e.message.includes('401')) logout(); }
 }
 
@@ -752,6 +771,52 @@ async function setVol(v){
     await fetch('/api/voice/volume', { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify({ volume: vol, channelId: getVoiceId() }) });
     toast(`Volume ${v}%`);
   }catch(e){ toast('Volume failed',true); }
+}
+const FX_PRESETS = {
+  normal: { pitch: 0, tempo: 100, reverb: 0, echo: 0, bass: 0 },
+  chipmunk: { pitch: 7, tempo: 115, reverb: 0, echo: 0, bass: 0 },
+  demon: { pitch: -7, tempo: 85, reverb: 35, echo: 0, bass: 8 },
+  cave: { pitch: 0, tempo: 100, reverb: 70, echo: 40, bass: 0 },
+};
+function readFxForm(){
+  return {
+    pitch: parseInt($('fxPitch').value)||0,
+    tempo: parseInt($('fxTempo').value)||100,
+    reverb: parseInt($('fxReverb').value)||0,
+    echo: parseInt($('fxEcho').value)||0,
+    bass: parseInt($('fxBass').value)||0,
+  };
+}
+function paintFx(fx){
+  $('fxPitch').value=fx.pitch; $('fxPitchVal').textContent=`${fx.pitch} st`;
+  $('fxTempo').value=fx.tempo; $('fxTempoVal').textContent=`${fx.tempo}%`;
+  $('fxReverb').value=fx.reverb; $('fxReverbVal').textContent=`${fx.reverb}%`;
+  $('fxEcho').value=fx.echo; $('fxEchoVal').textContent=`${fx.echo}%`;
+  $('fxBass').value=fx.bass; $('fxBassVal').textContent=`${fx.bass} dB`;
+}
+async function pushFx(silent){
+  const fx=readFxForm();
+  paintFx(fx);
+  try{
+    const r=await fetch('/api/voice/fx', { method:'POST', headers:{'Content-Type':'application/json',...authHeaders()}, body: JSON.stringify(fx) });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'fx failed');
+    paintFx(j.fx);
+    if(!silent) toast('🎛 Effects updated — next plays');
+  }catch(e){ toast(e.message,true); }
+}
+async function setFxPreset(name){
+  const p=FX_PRESETS[name];
+  if(!p) return;
+  paintFx(p);
+  await pushFx();
+}
+async function loadFx(){
+  try{
+    const r=await fetch('/api/voice/fx', { headers: authHeaders() });
+    if(!r.ok) return;
+    paintFx((await r.json()).fx);
+  }catch{}
 }
 // Normalize a filename into a valid sound name (same rules as bulk upload)
 function fileToName(filename){
