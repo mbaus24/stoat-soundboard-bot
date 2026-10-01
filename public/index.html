@@ -227,13 +227,14 @@ body[data-theme="aero"] #bulkProgress{background:rgba(255,255,255,.5)}
         <button class="secondary" onclick="setFxPreset('chipmunk')" style="font-size:12px" type="button">🐿 Chipmunk</button>
         <button class="secondary" onclick="setFxPreset('demon')" style="font-size:12px" type="button">😈 Demon</button>
         <button class="secondary" onclick="setFxPreset('cave')" style="font-size:12px" type="button">🦇 Cave</button>
+        <button class="secondary" onclick="setFxPreset('disto')" style="font-size:12px" type="button">🤘 Disto</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <label class="muted" style="font-size:12px">Pitch <span id="fxPitchVal">0 st</span><input type="range" id="fxPitch" min="-12" max="12" step="1" value="0" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
         <label class="muted" style="font-size:12px">Speed <span id="fxTempoVal">100%</span><input type="range" id="fxTempo" min="50" max="200" step="5" value="100" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
         <label class="muted" style="font-size:12px">Reverb <span id="fxReverbVal">0%</span><input type="range" id="fxReverb" min="0" max="100" step="1" value="0" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
         <label class="muted" style="font-size:12px">Echo <span id="fxEchoVal">0%</span><input type="range" id="fxEcho" min="0" max="100" step="1" value="0" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
-        <label class="muted" style="font-size:12px">Bass <span id="fxBassVal">0 dB</span><input type="range" id="fxBass" min="-20" max="20" step="1" value="0" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
+        <label class="muted" style="font-size:12px">Distortion <span id="fxDistVal">0%</span><input type="range" id="fxDist" min="0" max="100" step="1" value="0" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
       </div>
     </div>
   </div>
@@ -773,10 +774,11 @@ async function setVol(v){
   }catch(e){ toast('Volume failed',true); }
 }
 const FX_PRESETS = {
-  normal: { pitch: 0, tempo: 100, reverb: 0, echo: 0, bass: 0 },
-  chipmunk: { pitch: 7, tempo: 115, reverb: 0, echo: 0, bass: 0 },
-  demon: { pitch: -7, tempo: 85, reverb: 35, echo: 0, bass: 8 },
-  cave: { pitch: 0, tempo: 100, reverb: 70, echo: 40, bass: 0 },
+  normal: { pitch: 0, tempo: 100, reverb: 0, echo: 0, dist: 0 },
+  chipmunk: { pitch: 7, tempo: 115, reverb: 0, echo: 0, dist: 0 },
+  demon: { pitch: -7, tempo: 85, reverb: 35, echo: 0, dist: 0 },
+  cave: { pitch: 0, tempo: 100, reverb: 70, echo: 40, dist: 0 },
+  disto: { pitch: 0, tempo: 100, reverb: 15, echo: 0, dist: 80 },
 };
 function readFxForm(){
   return {
@@ -784,7 +786,7 @@ function readFxForm(){
     tempo: parseInt($('fxTempo').value)||100,
     reverb: parseInt($('fxReverb').value)||0,
     echo: parseInt($('fxEcho').value)||0,
-    bass: parseInt($('fxBass').value)||0,
+    dist: parseInt($('fxDist').value)||0,
   };
 }
 function paintFx(fx){
@@ -792,7 +794,7 @@ function paintFx(fx){
   $('fxTempo').value=fx.tempo; $('fxTempoVal').textContent=`${fx.tempo}%`;
   $('fxReverb').value=fx.reverb; $('fxReverbVal').textContent=`${fx.reverb}%`;
   $('fxEcho').value=fx.echo; $('fxEchoVal').textContent=`${fx.echo}%`;
-  $('fxBass').value=fx.bass; $('fxBassVal').textContent=`${fx.bass} dB`;
+  $('fxDist').value=fx.dist; $('fxDistVal').textContent=`${fx.dist}%`;
 }
 async function pushFx(silent){
   const fx=readFxForm();

@@ -296,10 +296,17 @@ export async function setVolume(volume, channelId){
 export function getVolume(){ return globalThis._voiceVol ?? 1; }
 
 // ---- Voice effects (applied at play time via ffmpeg, next plays) ----
-const FX_DEFAULTS = { pitch: 0, tempo: 100, reverb: 0, echo: 0, bass: 0 };
+const FX_DEFAULTS = { pitch: 0, tempo: 100, reverb: 0, echo: 0, dist: 0 };
 
 export function getFx() {
-  return { ...FX_DEFAULTS, ...(globalThis._voiceFx || {}) };
+  const s = globalThis._voiceFx || {};
+  return {
+    pitch: s.pitch ?? FX_DEFAULTS.pitch,
+    tempo: s.tempo ?? FX_DEFAULTS.tempo,
+    reverb: s.reverb ?? FX_DEFAULTS.reverb,
+    echo: s.echo ?? FX_DEFAULTS.echo,
+    dist: s.dist ?? FX_DEFAULTS.dist,
+  };
 }
 
 export async function setFx(patch) {
@@ -314,7 +321,7 @@ export async function setFx(patch) {
     tempo: num(patch?.tempo, 50, 200, cur.tempo),
     reverb: num(patch?.reverb, 0, 100, cur.reverb),
     echo: num(patch?.echo, 0, 100, cur.echo),
-    bass: num(patch?.bass, -20, 20, cur.bass),
+    dist: num(patch?.dist, 0, 100, cur.dist),
   };
   globalThis._voiceFx = next;
   console.info(`[voice] fx set ${JSON.stringify(next)}`);
@@ -326,7 +333,7 @@ export function buildFilterChain(fx) {
   const f = { ...FX_DEFAULTS, ...(fx || {}) };
   const parts = [];
   // normalize input rate first so pitch factor is rate-independent
-  const shaped = f.pitch !== 0 || f.tempo !== 100 || f.reverb !== 0 || f.echo !== 0 || f.bass !== 0;
+  const shaped = f.pitch !== 0 || f.tempo !== 100 || f.reverb !== 0 || f.echo !== 0 || f.dist !== 0;
   if (!shaped) return null;
   parts.push("aresample=48000");
   if (f.pitch !== 0) {
@@ -334,6 +341,7 @@ export function buildFilterChain(fx) {
     parts.push(`asetrate=48000*${factor.toFixed(6)},aresample=48000`);
   }
   if (f.tempo !== 100) parts.push(`atempo=${(f.tempo / 100).toFixed(3)}`);
+  if (f.dist !== 0) parts.push(`acrusher=level_in=1:level_out=1:bits=${8 - Math.round((f.dist * 5) / 100)}:mode=log`);
   if (f.reverb !== 0) {
     const d1 = Math.round(25 + f.reverb * 0.35);
     const d2 = Math.round(d1 * 1.8);
@@ -343,7 +351,6 @@ export function buildFilterChain(fx) {
     const d = Math.round(180 + f.echo * 3);
     parts.push(`aecho=0.8:${(0.4 + f.echo / 500).toFixed(3)}:${d}:0.45`);
   }
-  if (f.bass !== 0) parts.push(`bass=g=${f.bass}`);
   return parts.join(",");
 }
 
@@ -354,7 +361,7 @@ export function fxStream(filepath, chain) {
   if (!ffmpegPath || !chain) return null;
   try {
     const child = spawn(ffmpegPath, [
-      "-v", "error", "-i", filepath,
+      "-nostdin", "-v", "error", "-i", filepath,
       "-filter:a", chain,
       "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "pipe:1",
     ], { stdio: ["ignore", "pipe", "pipe"] });
