@@ -218,8 +218,18 @@ export async function playInVoice(channelId, soundName) {
   playLock.add(channelId);
   try {
     const chain = buildFilterChain(getFx());
-    const stream = fxStream(filepath, chain) || fs.createReadStream(filepath);
-    player.playStream(stream);
+    // FX output is headerless s16le: tell revoice's ffmpeg its format
+    // explicitly, otherwise it misdetects the stream and plays silence.
+    let stream = fs.createReadStream(filepath);
+    let inputOptions = [];
+    if (chain) {
+      const fx = fxStream(filepath, chain);
+      if (fx) {
+        stream = fx;
+        inputOptions = ["-f", "s16le", "-ar", "48000", "-ac", "2"];
+      }
+    }
+    player.playStream(stream, inputOptions);
     console.info(`[voice] playing ${soundName} (${entry.filename}) in ${channelId}${chain ? ` fx=${chain}` : ""}`);
     return { channelId, soundName, filename: entry.filename };
   } finally { setTimeout(() => playLock.delete(channelId), 500); }
