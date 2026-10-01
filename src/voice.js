@@ -323,8 +323,9 @@ export function buildFilterChain(fx) {
   if (!shaped) return null;
   parts.push("aresample=48000");
   if (f.pitch !== 0) {
+    // rubberband shifts pitch while preserving duration (asetrate would speed up/slow down)
     const factor = Math.pow(2, f.pitch / 12);
-    parts.push(`asetrate=48000*${factor.toFixed(6)},aresample=48000`);
+    parts.push(`rubberband=pitch=${factor.toFixed(6)}`);
   }
   if (f.tempo !== 100) parts.push(`atempo=${(f.tempo / 100).toFixed(3)}`);
   if (f.dist !== 0) {
