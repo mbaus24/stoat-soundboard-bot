@@ -221,7 +221,7 @@ body[data-theme="aero"] #bulkProgress{background:rgba(255,255,255,.5)}
 
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px">
-        <h2 style="margin:0">🎛 Effects</h2>
+        <h2 style="margin:0;display:flex;align-items:center;gap:8px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2.4" style="fill:var(--card)"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2.4" style="fill:var(--card)"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="7" cy="18" r="2.4" style="fill:var(--card)"/></svg>Effects</h2>
         <button class="secondary" onclick="setFxPreset('normal')" style="font-size:12px" type="button">Reset</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
@@ -795,7 +795,7 @@ async function pushFx(silent){
   const fx=readFxForm();
   paintFx(fx);
   try{ localStorage.setItem(FX_KEY, JSON.stringify(fx)); }catch{}
-  if(!silent) toast('🎛 Effects saved in this browser');
+  if(!silent) toast('Effects saved in this browser');
 }
 async function setFxPreset(name){
   const p=FX_PRESETS[name];
