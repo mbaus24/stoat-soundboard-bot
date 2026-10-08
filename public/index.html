@@ -220,14 +220,9 @@ body[data-theme="aero"] #bulkProgress{background:rgba(255,255,255,.5)}
     </div>
 
     <div class="card">
-      <h2>🎛 Effects</h2>
-      <div class="muted" style="margin-bottom:10px">Voice filters, applied to the next plays.</div>
-      <div class="row" style="margin-bottom:8px;gap:6px">
-        <button class="secondary" onclick="setFxPreset('normal')" style="font-size:12px" type="button">Normal</button>
-        <button class="secondary" onclick="setFxPreset('chipmunk')" style="font-size:12px" type="button">🐿 Chipmunk</button>
-        <button class="secondary" onclick="setFxPreset('demon')" style="font-size:12px" type="button">😈 Demon</button>
-        <button class="secondary" onclick="setFxPreset('cave')" style="font-size:12px" type="button">🦇 Cave</button>
-        <button class="secondary" onclick="setFxPreset('disto')" style="font-size:12px" type="button">🤘 Disto</button>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h2 style="margin:0">🎛 Effects</h2>
+        <button class="secondary" onclick="setFxPreset('normal')" style="font-size:12px" type="button">Reset</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <label class="muted" style="font-size:12px">Pitch <span id="fxPitchVal">0 st</span><input type="range" id="fxPitch" min="-12" max="12" step="1" value="0" style="width:100%" oninput="paintFx(readFxForm())" onchange="pushFx()"/></label>
@@ -775,10 +770,6 @@ async function setVol(v){
 }
 const FX_PRESETS = {
   normal: { pitch: 0, tempo: 100, reverb: 0, echo: 0, dist: 0 },
-  chipmunk: { pitch: 7, tempo: 115, reverb: 0, echo: 0, dist: 0 },
-  demon: { pitch: -7, tempo: 85, reverb: 35, echo: 0, dist: 0 },
-  cave: { pitch: 0, tempo: 100, reverb: 70, echo: 40, dist: 0 },
-  disto: { pitch: 0, tempo: 100, reverb: 15, echo: 0, dist: 80 },
 };
 const FX_KEY = 'sb_fx';
 const FX_DEFAULTS_UI = { pitch: 0, tempo: 100, reverb: 0, echo: 0, dist: 0 };

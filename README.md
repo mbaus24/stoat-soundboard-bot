@@ -13,7 +13,7 @@ Built on [`stoat.js`](https://github.com/stoatchat/javascript-client-sdk) and [`
 - **People tags** — assign one or more people to a sound, filter by person (color-coded)
 - **Auto-tag** — uploads match audio metadata (artist/composer/…) + filename + folder against known people; aliases supported (`PEOPLE_ALIASES` in `src/autotag.js`), backfill via `node scripts/autotag.js --apply`
 - **Themes** — dark (default) + Frutiger Aero light with ☀️/🌙 toggle (persisted). Aero wallpaper by [u/GunnohMM](https://www.reddit.com/r/FrutigerAero/comments/1blbrl9/) (resized to 1920w)
-- **Voice effects** — pitch (±12 st), tempo (50–200%), reverb, echo, distortion via ffmpeg at play time + presets (Chipmunk/Demon/Cave/Disto). Params live in each browser (localStorage) and ride along with every play — nobody overrides anyone else
+- **Voice effects** — pitch (±12 st), tempo (50–200%), reverb, echo, distortion via ffmpeg at play time + Reset. Params live in each browser (localStorage) and ride along with every play — nobody overrides anyone else
 - **Voice playback** — bot joins a voice channel and streams the audio live (ffmpeg → LiveKit)
 - **Auto-leave** — voice disconnects after 5-10 min idle
 - **Bot commands** — `!sb` prefix for add/list/delete/rename and voice controls
