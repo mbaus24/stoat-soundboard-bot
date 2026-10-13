@@ -495,6 +495,7 @@ function updatePeopleFilters(){
   const pl=$('peopleList'); if(pl){ pl.innerHTML=''; PEOPLE.forEach(p=>{ const o=document.createElement('option'); o.value=p[0]; pl.appendChild(o); }); }
   PEOPLE.forEach(([name,color])=>{
     const count=sounds.filter(s=>(s.people||[]).includes(name)).length;
+    if(!count && !selectedPeople.includes(name)) return; // hide people with no visible sounds
     const b=document.createElement('button');
     b.className='person-chip'+(selectedPeople.includes(name)?' active':'');
     b.style.color=color;
