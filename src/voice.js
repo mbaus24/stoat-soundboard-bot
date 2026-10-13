@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { SOUNDS_DIR, getEntry } from "./sounds.js";
+import { SOUNDS_DIR, getEntry, isArchived } from "./sounds.js";
 
 const require = createRequire(import.meta.url);
 let Revoice, MediaPlayer;
@@ -185,7 +185,7 @@ async function lockedJoin(channelId, _retry=0) {
 }
 export async function playInVoice(channelId, soundName, fx) {
   const entry = getEntry(soundName);
-  if (!entry) throw new Error("not_found");
+  if (!entry || isArchived(entry)) throw new Error("not_found");
   const filepath = path.join(SOUNDS_DIR, entry.filename);
   if (!fs.existsSync(filepath)) throw new Error("file_missing");
   // single active voice connection: leave others first to avoid multi-spawn lag

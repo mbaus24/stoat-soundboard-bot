@@ -1,5 +1,5 @@
 import { Client } from "stoat.js";
-import { getSounds, getEntry, addSound, deleteSound, renameSound } from "./sounds.js";
+import { getSounds, visibleSounds, getEntry, addSound, deleteSound, renameSound } from "./sounds.js";
 
 const TOKEN = process.env.BOT_TOKEN;
 const PREFIX = process.env.PREFIX || "!sb";
@@ -108,10 +108,11 @@ client.on("messageCreate", async (message) => {
       break;
     }
     case "list": case "ls": {
-      const names = Object.keys(sounds).sort();
+      const vis = visibleSounds();
+      const names = Object.keys(vis).sort();
       if (!names.length) await message.channel.sendMessage(`Aucun son. Ajoute via Web UI ou \`${PREFIX} add <name>\` + fichier.`);
       else {
-        const lines = names.map(n => `• \`${n}\` — ${sounds[n].filename} (${(sounds[n].size/1024).toFixed(1)}KB)`);
+        const lines = names.map(n => `• \`${n}\` — ${vis[n].filename} (${(vis[n].size/1024).toFixed(1)}KB)`);
         const chunk=15;
         for(let i=0;i<lines.length;i+=chunk) await message.channel.sendMessage(`**Sounds (${names.length}):**\n${lines.slice(i,i+chunk).join("\n")}`);
       }

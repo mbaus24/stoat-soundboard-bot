@@ -17,6 +17,35 @@ try {
 
 export function getSounds() { return sounds; }
 
+// Archive rules: sounds matching a rule are hidden from every frontend
+// route (list, preview, play) but stay on disk + in backups.
+// Env ARCHIVE_RULES: comma-separated rules, "+" = AND within a rule.
+// Example: "Cdellies,Salemium" archives sounds tagged with either;
+// "Cdellies+Salemium" would only archive sounds tagged with both.
+function archiveRules() {
+  const raw = process.env.ARCHIVE_RULES || "Cdellies,Salemium";
+  return raw
+    .split(",")
+    .map((r) =>
+      r
+        .split("+")
+        .map((p) => p.trim().toLowerCase())
+        .filter(Boolean),
+    )
+    .filter((r) => r.length);
+}
+
+export function isArchived(entry) {
+  if (!entry) return false;
+  const tags = new Set((entry.people || []).map((p) => String(p).toLowerCase()));
+  return archiveRules().some((rule) => rule.every((p) => tags.has(p)));
+}
+
+// Registry view with archived sounds removed (frontend-safe).
+export function visibleSounds() {
+  return Object.fromEntries(Object.entries(sounds).filter(([, e]) => !isArchived(e)));
+}
+
 export async function saveRegistry() {
   await fs.writeFile(DATA_FILE, JSON.stringify(sounds, null, 2));
 }

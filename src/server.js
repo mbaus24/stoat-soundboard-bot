@@ -4,7 +4,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
-import { getSounds, addSound, deleteSound, renameSound, setPeople, setCategory, SOUNDS_DIR } from "./sounds.js";
+import { getSounds, visibleSounds, isArchived, addSound, deleteSound, renameSound, setPeople, setCategory, SOUNDS_DIR } from "./sounds.js";
 import { client } from "./bot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,15 +32,20 @@ function auth(req, res, next) {
 // Serve static UI
 app.use(express.static(path.join(__dirname, "..", "public")));
 
-// Serve sounds for preview (read-only)
+// Serve sounds for preview (read-only, archived excluded)
 app.get("/sounds/:filename", async (req, res) => {
   const fp = path.join(SOUNDS_DIR, path.basename(req.params.filename));
-  try { await fs.access(fp); res.sendFile(fp); } catch { res.status(404).send("not found"); }
+  try {
+    await fs.access(fp);
+    const entry = Object.values(getSounds()).find((e) => e.filename === path.basename(req.params.filename));
+    if (entry && isArchived(entry)) return res.status(404).send("not found");
+    res.sendFile(fp);
+  } catch { res.status(404).send("not found"); }
 });
 
-// API
+// API (archived sounds excluded everywhere)
 app.get("/api/sounds", auth, (req, res) => {
-  const sounds = getSounds();
+  const sounds = visibleSounds();
   const list = Object.entries(sounds).map(([name, meta]) => ({ name, people: [], ...meta }));
   list.sort((a,b)=>a.name.localeCompare(b.name));
   const categories = [...new Set(list.map(s => s.category || "General"))].sort();
@@ -269,7 +274,7 @@ app.get("/api/channels", auth, async (req,res)=>{
 });
 
 // Health
-app.get("/api/health", (req,res)=> res.json({ ok:true, botReady: !!client.user, bot: client.user?.username || null, sounds: Object.keys(getSounds()).length, voiceDefault: DEFAULT_VOICE, defaultChannel: DEFAULT_CHANNEL }));
+app.get("/api/health", (req,res)=> res.json({ ok:true, botReady: !!client.user, bot: client.user?.username || null, sounds: Object.keys(visibleSounds()).length, voiceDefault: DEFAULT_VOICE, defaultChannel: DEFAULT_CHANNEL }));
 
 export function startServer() {
   return new Promise(resolve => {
